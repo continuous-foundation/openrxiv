@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { parseDOI } from 'biorxiv-utils';
-import { createErrorResponse } from '@/utils/zod';
+import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
 import { formatWorkDTO } from '@/dtos/work';
 import { validateGetFileByKeyRequest } from '@/utils/bucket';
@@ -33,16 +33,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(formattedWork);
   } catch (error) {
-    if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
-      return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: (error as any).issues,
-        },
-        { status: 400 },
-      );
+    // Try to handle Zod and validation errors
+    try {
+      return handleZodError(error);
+    } catch {
+      // If handleZodError re-throws, it's not a validation error
+      console.error('Error fetching work by S3 key:', error);
+      return createErrorResponse('Internal server error', 500);
     }
-    console.error('Error fetching work by S3 key:', error);
-    return createErrorResponse('Internal server error', 500);
   }
 }

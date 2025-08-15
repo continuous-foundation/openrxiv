@@ -11,6 +11,17 @@ export function handleZodError(error: any): NextResponse {
     );
   }
 
+  // Check if it's a validation error from our schema transforms
+  if (error instanceof Error && error.message.includes('must be')) {
+    return NextResponse.json(
+      {
+        error: 'Validation failed',
+        details: [{ message: error.message }],
+      },
+      { status: 400 },
+    );
+  }
+
   // Re-throw non-Zod errors to be handled by general error handling
   throw error;
 }

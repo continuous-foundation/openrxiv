@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import type { Work } from '@prisma/client';
-import { createErrorResponse } from '@/utils/zod';
+import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
 import { validateListFilesRequest, convertMonthFormat, buildPaginationLinks } from '@/utils/bucket';
 
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = Object.fromEntries(searchParams.entries());
 
-    const { month, limit = 100, offset } = validateListFilesRequest(query);
+    const { month, limit = 1000, offset } = validateListFilesRequest(query);
 
     // Convert YYYY-MM to Month_YYYY format
     const batchName = convertMonthFormat(month);
@@ -80,16 +80,13 @@ export async function GET(request: NextRequest) {
       links,
     });
   } catch (error) {
-    if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
-      return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: (error as any).issues,
-        },
-        { status: 400 },
-      );
+    // Try to handle Zod and validation errors
+    try {
+      return handleZodError(error);
+    } catch {
+      // If handleZodError re-throws, it's not a validation error
+      console.error('Error listing files by month:', error);
+      return createErrorResponse('Internal server error', 500);
     }
-    console.error('Error listing files by month:', error);
-    return createErrorResponse('Internal server error', 500);
   }
 }

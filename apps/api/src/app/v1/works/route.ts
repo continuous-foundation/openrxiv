@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import type { DOIParts } from 'biorxiv-utils';
 import { parseDOI, isValidBiorxivDOI, extractBaseDOI, extractVersion } from 'biorxiv-utils';
 import { withAuth } from '@/utils/withAuth';
-import { createErrorResponse } from '@/utils/zod';
+import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
 import { formatWorkDTO } from '@/dtos/work';
 import {
@@ -127,17 +127,14 @@ export const POST = withAuth(
 
       return NextResponse.json(dto, { status: 201 });
     } catch (error) {
-      if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
-        return NextResponse.json(
-          {
-            error: 'Validation failed',
-            details: (error as any).issues,
-          },
-          { status: 400 },
-        );
+      // Try to handle Zod and validation errors
+      try {
+        return handleZodError(error);
+      } catch {
+        // If handleZodError re-throws, it's not a validation error
+        console.error('Error creating work:', error);
+        return createErrorResponse('Internal server error', 500);
       }
-      console.error('Error creating work:', error);
-      return createErrorResponse('Internal server error', 500);
     }
   },
 );
@@ -259,17 +256,14 @@ export const DELETE = withAuth(
         { status: 400 },
       );
     } catch (error) {
-      if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
-        return NextResponse.json(
-          {
-            error: 'Validation failed',
-            details: (error as any).issues,
-          },
-          { status: 400 },
-        );
+      // Try to handle Zod and validation errors
+      try {
+        return handleZodError(error);
+      } catch {
+        // If handleZodError re-throws, it's not a validation error
+        console.error('Error deleting work:', error);
+        return createErrorResponse('Internal server error', 500);
       }
-      console.error('Error deleting work:', error);
-      return createErrorResponse('Internal server error', 500);
     }
   },
 );
