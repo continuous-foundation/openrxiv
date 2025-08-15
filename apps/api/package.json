@@ -1,0 +1,33 @@
+{
+  "name": "biorxiv-s3-api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "npm run db:generate && next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:reset": "prisma migrate reset && npm run db:seed",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx src/scripts/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.14.0",
+    "next": "15.4.6",
+    "biorxiv-utils": "0.0.0",
+    "supabase": "^2.34.3",
+    "vitest": "^3.2.4",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "prisma": "^6.14.0",
+    "typescript": "^5",
+    "@types/node": "^20",
+    "tsx": "^4.19.2",
+    "@types/react": "^19"
+  }
+}

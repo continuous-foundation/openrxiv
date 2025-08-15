@@ -1,0 +1,42 @@
+{
+  "name": "biorxiv-utils",
+  "version": "0.0.0",
+  "description": "Utility functions for bioRxiv operations including URL parsing and DOI handling",
+  "main": "dist/index.js",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "keywords": [
+    "biorxiv",
+    "utils",
+    "doi",
+    "url-parsing",
+    "validation"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/biorxiv-meca.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/biorxiv-meca/issues"
+  },
+  "homepage": "https://github.com/yourusername/biorxiv-meca#readme"
+}

@@ -1,0 +1,42 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Work {
+  id           String    @id @default(cuid())
+  doi          String
+  version      Int
+  receivedDate DateTime
+  acceptedDate DateTime?
+  batch        String
+  server       String    @default("biorxiv")
+
+  // S3 location information
+  s3Bucket String @default("biorxiv-src-monthly")
+  s3Key    String
+  fileSize BigInt
+
+  // Metadata
+  title String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doi, version])
+  @@index([doi, version])
+  @@index([receivedDate])
+  @@index([acceptedDate])
+  @@index([batch])
+  @@index([server])
+  @@map("works")
+}

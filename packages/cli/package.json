@@ -1,0 +1,72 @@
+{
+  "name": "biorxiv",
+  "version": "0.0.0",
+  "description": "CLI tool to download bioRxiv MECA files from AWS S3 for text and data mining",
+  "main": "dist/src/index.js",
+  "bin": {
+    "biorxiv": "./dist/biorxiv.cjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf dist",
+    "unlink": "npm uninstall -g biorxiv-cli",
+    "link": "npm run unlink; npm link;",
+    "dev": "npm run link && esbuild src/index.ts --bundle --outfile=dist/biorxiv.cjs --platform=node --external:fsevents --target=node14 --watch",
+    "lint": "eslint \"src/**/!(*.spec).ts\" -c ../../.eslintrc.cjs",
+    "lint:format": "npx prettier --check \"src/**/*.ts\"",
+    "test": "vitest run",
+    "copy:version": "echo \"const version = '\"$npm_package_version\"';\nexport default version;\" > src/version.ts",
+    "test:watch": "vitest watch",
+    "build:esm": "tsc",
+    "build:cli": "esbuild src/index.ts --bundle --outfile=dist/biorxiv.cjs --platform=node --external:fsevents --target=node14",
+    "build": "npm-run-all -l clean copy:version -p build:cli build:esm"
+  },
+  "keywords": [
+    "biorxiv",
+    "cli",
+    "aws",
+    "s3",
+    "download",
+    "meca",
+    "research",
+    "text-mining",
+    "data-mining"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0",
+    "axios": "^1.6.0",
+    "biorxiv-utils": "^0.0.0",
+    "boxen": "^8.0.1",
+    "chalk": "^5.0.0",
+    "cli-progress": "^3.12.0",
+    "commander": "^11.0.0",
+    "conf": "^10.0.0",
+    "inquirer": "^9.0.0",
+    "jszip": "^3.10.1",
+    "ora": "^7.0.0",
+    "adm-zip": "^0.5.10",
+    "unified": "^11.0.0",
+    "xast-util-from-xml": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/cli-progress": "^3.11.0",
+    "@types/inquirer": "^9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/biorxiv-meca-downloader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/biorxiv-meca-downloader/issues"
+  },
+  "homepage": "https://github.com/yourusername/biorxiv-meca-downloader#readme"
+}
