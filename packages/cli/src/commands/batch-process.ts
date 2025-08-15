@@ -96,6 +96,7 @@ export const batchProcessCommand = new Command('batch-process')
         : availableFiles.filter((file) => !processingStatus[file.s3Key]?.exists);
 
       // Apply file size filter if specified
+      let filteredCount = 0;
       if (options.maxFileSize) {
         const maxSizeBytes = parseFileSize(options.maxFileSize);
         if (maxSizeBytes === null) {
@@ -107,7 +108,7 @@ export const batchProcessCommand = new Command('batch-process')
 
         const originalCount = filesToProcess.length;
         filesToProcess = filesToProcess.filter((file) => file.fileSize <= maxSizeBytes);
-        const filteredCount = originalCount - filesToProcess.length;
+        filteredCount = originalCount - filesToProcess.length;
 
         if (filteredCount > 0) {
           console.log(
@@ -234,6 +235,11 @@ export const batchProcessCommand = new Command('batch-process')
       console.log(
         `⏭️  Skipped (already processed): ${availableFiles.length - filesToProcess.length}`,
       );
+
+      // Show file size filtering summary if any files were filtered
+      if (filteredCount > 0) {
+        console.log(`🚫 Skipped ${filteredCount} files larger than ${options.maxFileSize}`);
+      }
 
       // Cleanup summary
       if (!options.keep) {
