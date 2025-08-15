@@ -13,6 +13,7 @@ export interface DownloadOptions {
   output?: string;
   parallel?: number;
   resume?: boolean;
+  filename?: string;
 }
 
 export interface DownloadProgress {
@@ -45,7 +46,7 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
 
     const metadata = await client.send(headCommand);
     const fileSize = metadata.ContentLength || 0;
-    const fileName = path.split('/').pop() || 'unknown';
+    const fileName = options.filename || path.split('/').pop() || 'unknown';
     const outputPath = join(output, fileName);
 
     // Create output directory
