@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = Object.fromEntries(searchParams.entries());
 
-    const { month, limit = 1000, offset } = validateListFilesRequest(query);
+    const { month, limit = 100, offset } = validateListFilesRequest(query);
 
     // Convert YYYY-MM to Month_YYYY format
     const batchName = convertMonthFormat(month);
