@@ -10,6 +10,7 @@ import { summaryCommand } from './commands/summary.js';
 import { monthInfoCommand } from './commands/month-info.js';
 import { extractManifestCommand } from './commands/extract-manifest.js';
 import { batchProcessCommand } from './commands/batch-process.js';
+import { setGlobalRequesterPays } from './aws/config.js';
 import version from './version.js';
 
 const program = new Command();
@@ -32,6 +33,17 @@ program.addCommand(batchProcessCommand);
 
 // Global options
 program.option('-d, --debug', 'Enable debug mode');
+program.option(
+  '--requester-pays',
+  'Enable requester pays for local development (required when not on EC2 with IAM role)',
+);
 
 // Parse command line arguments
 program.parse();
+
+// Set global requester pays based on command line option
+const options = program.opts();
+if (options.requesterPays) {
+  setGlobalRequesterPays(true);
+  console.log('Requester pays enabled - you will be charged for S3 requests');
+}

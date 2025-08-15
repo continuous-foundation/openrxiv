@@ -1,6 +1,6 @@
 import { S3Client, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
-import { getS3Client } from './config.js';
+import { getS3Client, getGlobalRequesterPays } from './config.js';
 
 export interface ListOptions {
   month?: string;
@@ -35,13 +35,18 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
       prefix = `Back_Content/${batch}/`;
     }
 
-    const command = new ListObjectsV2Command({
+    const commandOptions: any = {
       Bucket: 'biorxiv-src-monthly',
       Prefix: prefix,
       MaxKeys: parseInt(limit.toString()),
-      // bioRxiv bucket is requester-pays, so we need to indicate we'll pay for requests
-      RequestPayer: 'requester',
-    });
+    };
+
+    // Only add RequestPayer if requester pays is enabled
+    if (getGlobalRequesterPays()) {
+      commandOptions.RequestPayer = 'requester';
+    }
+
+    const command = new ListObjectsV2Command(commandOptions);
 
     const response = await client.send(command);
 
@@ -87,13 +92,18 @@ export async function searchContent(query: string, options: SearchOptions): Prom
     const results: ContentItem[] = [];
 
     for (const prefix of prefixes) {
-      const command = new ListObjectsV2Command({
+      const commandOptions: any = {
         Bucket: 'biorxiv-src-monthly',
         Prefix: prefix,
         MaxKeys: 1000, // Get more items for searching
-        // bioRxiv bucket is requester-pays, so we need to indicate we'll pay for requests
-        RequestPayer: 'requester',
-      });
+      };
+
+      // Only add RequestPayer if requester pays is enabled
+      if (getGlobalRequesterPays()) {
+        commandOptions.RequestPayer = 'requester';
+      }
+
+      const command = new ListObjectsV2Command(commandOptions);
 
       const response = await client.send(command);
 
@@ -157,12 +167,17 @@ export async function getContentInfo(path: string, options: { detailed?: boolean
   console.log(chalk.blue('=============================='));
 
   try {
-    const command = new HeadObjectCommand({
+    const commandOptions: any = {
       Bucket: 'biorxiv-src-monthly',
       Key: path,
-      // bioRxiv bucket is requester-pays, so we need to indicate we'll pay for requests
-      RequestPayer: 'requester',
-    });
+    };
+
+    // Only add RequestPayer if requester pays is enabled
+    if (getGlobalRequesterPays()) {
+      commandOptions.RequestPayer = 'requester';
+    }
+
+    const command = new HeadObjectCommand(commandOptions);
 
     const response = await client.send(command);
 

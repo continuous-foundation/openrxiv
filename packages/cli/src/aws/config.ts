@@ -14,7 +14,19 @@ interface ConfigData {
     accessKeyId?: string;
     secretAccessKey?: string;
     region: string;
+    requesterPays?: boolean;
   };
+}
+
+// Global configuration for requester pays
+let globalRequesterPays = false; // Default to false (no requester pays)
+
+export function setGlobalRequesterPays(enabled: boolean): void {
+  globalRequesterPays = enabled;
+}
+
+export function getGlobalRequesterPays(): boolean {
+  return globalRequesterPays;
 }
 
 async function ensureConfigDir(): Promise<void> {
@@ -98,37 +110,72 @@ export async function setCredentials(options: AWSCredentials): Promise<void> {
 export async function testConnection(): Promise<void> {
   const credentials = await getCredentials();
 
+  // If no credentials are provided, try to use instance metadata (EC2 IAM role)
   if (!credentials.accessKeyId || !credentials.secretAccessKey) {
-    throw new Error('AWS credentials not configured. Run "biorxiv config set-credentials" first.');
+    console.log(
+      chalk.yellow(
+        'No AWS credentials found in config, attempting to use EC2 instance metadata...',
+      ),
+    );
   }
 
   const client = new S3Client({
     region: credentials.region,
-    credentials: {
-      accessKeyId: credentials.accessKeyId,
-      secretAccessKey: credentials.secretAccessKey,
+    ...(credentials.accessKeyId && credentials.secretAccessKey
+      ? {
+          credentials: {
+            accessKeyId: credentials.accessKeyId,
+            secretAccessKey: credentials.secretAccessKey,
+          },
+        }
+      : {}),
+    requestHandler: {
+      httpOptions: {
+        timeout: 300000, // 5 minutes timeout for large operations
+      },
     },
   });
 
   try {
     console.log(chalk.blue('Testing connection to bioRxiv bucket...'));
 
-    // Test connection by listing a small amount of content (this works with requester-pays)
-    const listCommand = new ListObjectsV2Command({
+    // Test connection by listing a small amount of content
+    const listCommandOptions: any = {
       Bucket: 'biorxiv-src-monthly',
       MaxKeys: 1,
-      RequestPayer: 'requester',
-    });
+    };
+
+    // Only add RequestPayer if requester pays is enabled
+    if (getGlobalRequesterPays()) {
+      listCommandOptions.RequestPayer = 'requester';
+    }
+
+    const listCommand = new ListObjectsV2Command(listCommandOptions);
 
     await client.send(listCommand);
 
     console.log(chalk.green('✓ Successfully connected to bioRxiv bucket'));
     console.log(chalk.blue('Bucket: biorxiv-src-monthly'));
     console.log(chalk.blue('Region: us-east-1'));
-    console.log(chalk.blue('Requester-pays: Enabled'));
+
+    if (getGlobalRequesterPays()) {
+      console.log(chalk.blue('Requester-pays: Enabled'));
+      console.log(chalk.yellow('⚠️  You will be charged for S3 requests'));
+    } else {
+      console.log(chalk.blue('Requester-pays: Disabled'));
+      console.log(
+        chalk.green('✓ No charges for S3 requests (using EC2 IAM role or bucket owner pays)'),
+      );
+    }
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Connection failed: ${error.message}`);
+      if (error.message.includes('Access Denied') && !getGlobalRequesterPays()) {
+        console.log(chalk.red('✗ Access denied. This bucket requires requester pays.'));
+        console.log(chalk.yellow('Try running with --requester-pays flag for local development.'));
+        console.log(chalk.blue('On EC2 with proper IAM role, this should work without the flag.'));
+      } else {
+        throw new Error(`Connection failed: ${error.message}`);
+      }
     }
     throw error;
   }
@@ -161,8 +208,23 @@ export async function getCredentials() {
 export async function getS3Client(): Promise<S3Client> {
   const credentials = await getCredentials();
 
+  // If no credentials are provided, try to use instance metadata (EC2 IAM role)
   if (!credentials.accessKeyId || !credentials.secretAccessKey) {
-    throw new Error('AWS credentials not configured. Run "biorxiv config set-credentials" first.');
+    console.log(
+      chalk.yellow(
+        'No AWS credentials found in config, attempting to use EC2 instance metadata...',
+      ),
+    );
+
+    return new S3Client({
+      region: credentials.region,
+      // AWS SDK will automatically use instance metadata service for credentials
+      requestHandler: {
+        httpOptions: {
+          timeout: 300000, // 5 minutes timeout for large operations
+        },
+      },
+    });
   }
 
   return new S3Client({

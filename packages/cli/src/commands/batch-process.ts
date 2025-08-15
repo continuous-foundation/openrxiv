@@ -73,7 +73,11 @@ export const batchProcessCommand = new Command('batch-process')
       }
 
       // Step 2: Check which files are already processed
-      const processingStatus = await checkProcessingStatus(availableFiles, options.apiUrl);
+      const processingStatus = await checkProcessingStatus(
+        availableFiles,
+        options.apiUrl,
+        options.month,
+      );
 
       const filesToProcess = options.force
         ? availableFiles
@@ -206,10 +210,81 @@ async function listAvailableFiles(
 async function checkProcessingStatus(
   files: S3FileInfo[],
   apiUrl: string,
+  month: string,
+): Promise<Record<string, { exists: boolean; paper?: any }>> {
+  const status: Record<string, { exists: boolean; paper?: any }> = {};
+  const processedFiles = new Set<string>();
+
+  console.log('🔍 Checking processing status using batch endpoint...');
+
+  // Extract month from the first file's S3 key to determine the batch
+  // Format should be something like "2025-01/..." so we extract "2025-01"
+  const monthFromFiles = month || files[0]?.s3Key.split('/')[0];
+
+  if (!monthFromFiles || !/^\d{4}-\d{2}$/.test(monthFromFiles)) {
+    console.warn('⚠️  Could not determine month from files, falling back to individual requests');
+    return checkProcessingStatusIndividual(files, apiUrl);
+  }
+
+  let offset = 0;
+  const limit = 100; // Use the API's default limit
+  let hasMore = true;
+
+  while (hasMore) {
+    try {
+      const response = await axios.get(
+        `${apiUrl}/v1/bucket/list?month=${monthFromFiles}&limit=${limit}&offset=${offset}`,
+      );
+
+      const { files: batchFiles, pagination } = response.data;
+
+      // Mark all files in this batch as processed
+      for (const file of batchFiles) {
+        if (file.s3Key) {
+          processedFiles.add(file.s3Key);
+          status[file.s3Key] = { exists: true, paper: file };
+        }
+      }
+
+      // Check if we have more pages
+      hasMore = pagination.hasMore;
+      offset = pagination.nextOffset || offset + limit;
+
+      console.log(
+        `  📄 Processed batch page: ${batchFiles.length} files (offset: ${pagination.offset})`,
+      );
+    } catch (error) {
+      console.warn(`⚠️  Error fetching batch at offset ${offset}:`, error);
+      hasMore = false;
+    }
+  }
+
+  // Now check which of our requested files exist in the processed set
+  const finalStatus: Record<string, { exists: boolean; paper?: any }> = {};
+
+  for (const file of files) {
+    if (processedFiles.has(file.s3Key)) {
+      finalStatus[file.s3Key] = status[file.s3Key];
+    } else {
+      finalStatus[file.s3Key] = { exists: false };
+    }
+  }
+
+  console.log(`  ✅ Found ${processedFiles.size} processed files in batch`);
+  console.log(
+    `  📊 Requested files status: ${Object.values(finalStatus).filter((s) => s.exists).length}/${files.length} already processed`,
+  );
+
+  return finalStatus;
+}
+
+async function checkProcessingStatusIndividual(
+  files: S3FileInfo[],
+  apiUrl: string,
 ): Promise<Record<string, { exists: boolean; paper?: any }>> {
   const status: Record<string, { exists: boolean; paper?: any }> = {};
 
-  console.log('🔍 Checking processing status...');
+  console.log('  🔍 Falling back to individual file checks...');
 
   for (const file of files) {
     try {

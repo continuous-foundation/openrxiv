@@ -7,7 +7,7 @@ import { Transform } from 'stream';
 import chalk from 'chalk';
 import ora from 'ora';
 import cliProgress from 'cli-progress';
-import { getS3Client } from './config.js';
+import { getS3Client, getGlobalRequesterPays } from './config.js';
 
 export interface DownloadOptions {
   output?: string;
@@ -31,12 +31,17 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
 
   try {
     // Get file metadata
-    const headCommand = new HeadObjectCommand({
+    const headCommandOptions: any = {
       Bucket: 'biorxiv-src-monthly',
       Key: path,
-      // bioRxiv bucket is requester-pays, so we need to indicate we'll pay for requests
-      RequestPayer: 'requester',
-    });
+    };
+
+    // Only add RequestPayer if requester pays is enabled
+    if (getGlobalRequesterPays()) {
+      headCommandOptions.RequestPayer = 'requester';
+    }
+
+    const headCommand = new HeadObjectCommand(headCommandOptions);
 
     const metadata = await client.send(headCommand);
     const fileSize = metadata.ContentLength || 0;
@@ -64,12 +69,17 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
     // Start download
     const spinner = ora('Preparing download...').start();
 
-    const getCommand = new GetObjectCommand({
+    const getCommandOptions: any = {
       Bucket: 'biorxiv-src-monthly',
       Key: path,
-      // bioRxiv bucket is requester-pays, so we need to indicate we'll pay for requests
-      RequestPayer: 'requester',
-    });
+    };
+
+    // Only add RequestPayer if requester pays is enabled
+    if (getGlobalRequesterPays()) {
+      getCommandOptions.RequestPayer = 'requester';
+    }
+
+    const getCommand = new GetObjectCommand(getCommandOptions);
 
     const response = await client.send(getCommand);
 
@@ -99,7 +109,11 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
         super();
       }
 
-      _transform(chunk: Buffer, encoding: string, callback: Function) {
+      _transform(
+        chunk: Buffer,
+        encoding: string,
+        callback: (error?: Error | null, data?: Buffer) => void,
+      ) {
         downloadedBytes += chunk.length;
         const elapsed = (Date.now() - startTime) / 1000;
         const speed = downloadedBytes / elapsed;
@@ -118,10 +132,27 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
     progressBar.stop();
     console.log(chalk.green(`✓ Download completed: ${outputPath}`));
     console.log(chalk.blue(`File size: ${formatFileSize(fileSize)}`));
-
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Download failed: ${error.message}`);
+      // Check for specific AWS errors that indicate requester pays is needed
+      if (error.message.includes('Access Denied') || error.message.includes('403')) {
+        if (!getGlobalRequesterPays()) {
+          throw new Error(
+            `Download failed: Access denied. This bucket requires requester pays for downloads. ` +
+              `Try running with --requester-pays flag or ensure your IAM role has requester pays permissions.`,
+          );
+        } else {
+          throw new Error(
+            `Download failed: Access denied. Check your AWS credentials and permissions.`,
+          );
+        }
+      } else if (error.message.includes('NoSuchKey')) {
+        throw new Error(`Download failed: File not found in S3 bucket.`);
+      } else if (error.message.includes('NoSuchBucket')) {
+        throw new Error(`Download failed: S3 bucket not found.`);
+      } else {
+        throw new Error(`Download failed: ${error.message}`);
+      }
     }
     throw error;
   }
