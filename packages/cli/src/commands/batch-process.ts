@@ -15,6 +15,7 @@ interface BatchOptions {
   dryRun: boolean;
   force: boolean;
   keep: boolean;
+  fullExtract: boolean;
   awsBucket: string;
   awsRegion: string;
 }
@@ -36,6 +37,11 @@ export const batchProcessCommand = new Command('batch-process')
   .option('--dry-run', 'List files without processing them', false)
   .option('--force', 'Force reprocessing of existing files', false)
   .option('--keep', 'Keep MECA files after processing (default: false)', false)
+  .option(
+    '--full-extract',
+    'Extract entire MECA file instead of selective extraction (default: false)',
+    false,
+  )
   .option('--aws-bucket <bucket>', 'AWS S3 bucket name', 'biorxiv-src-monthly')
   .option('--aws-region <region>', 'AWS region', 'us-east-1')
   .action(async (options: BatchOptions) => {
@@ -125,6 +131,7 @@ export const batchProcessCommand = new Command('batch-process')
             output: options.output,
             s3Key: file.s3Key, // Pass the full S3 key for database storage
             apiKey,
+            selective: !options.fullExtract, // Enable selective extraction unless --full-extract is used
           });
 
           if (result.success) {

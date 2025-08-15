@@ -37,6 +37,7 @@ export interface ProcessMecaOptions {
   output?: string;
   s3Key?: string; // Add S3 key parameter
   apiKey?: string; // Add API key for authentication
+  selective?: boolean; // Enable selective extraction (manifest + JATS only)
 }
 
 export interface ProcessMecaResult {
@@ -63,8 +64,10 @@ export async function processMecaFile(
       fs.mkdirSync(options.output, { recursive: true });
     }
 
-    // Extract MECA file
-    const extractedDir = await extractMeca(mecaPath, options.output || './extracted');
+    // Extract MECA file (selective or full based on options)
+    const extractedDir = options.selective
+      ? await extractMecaSelective(mecaPath, options.output || './extracted')
+      : await extractMeca(mecaPath, options.output || './extracted');
     console.log(`📂 Extracted to: ${extractedDir}`);
 
     // Parse manifest
@@ -131,6 +134,108 @@ async function extractMeca(mecaPath: string, outputDir: string): Promise<string>
   // Use adm-zip for ZIP extraction
   const zip = new AdmZip(mecaPath);
   zip.extractAllTo(extractedDir, true);
+
+  return extractedDir;
+}
+
+async function extractMecaSelective(mecaPath: string, outputDir: string): Promise<string> {
+  const extractedDir = path.join(outputDir, path.basename(mecaPath, path.extname(mecaPath)));
+
+  if (!fs.existsSync(extractedDir)) {
+    fs.mkdirSync(extractedDir, { recursive: true });
+  }
+
+  console.log('  📦 Using selective extraction (manifest + JATS only)...');
+
+  // Use adm-zip for selective ZIP extraction
+  const zip = new AdmZip(mecaPath);
+
+  // First, extract just the manifest to see what's available
+  const manifestEntry = zip.getEntry('manifest.xml');
+  if (!manifestEntry) {
+    throw new Error('Manifest not found in MECA file');
+  }
+
+  // Extract manifest
+  zip.extractEntryTo('manifest.xml', extractedDir, false, true);
+  console.log('  📋 Manifest extracted');
+
+  // Parse manifest to find JATS file path from manifest
+  const manifest = await parseManifest(extractedDir);
+
+  // Find the JATS file path from the manifest (without constructing full path yet)
+  let jatsRelativePath: string | null = null;
+  for (const item of manifest.item) {
+    if (item['@_type'] === 'article') {
+      for (const instance of item.instance) {
+        if (
+          instance['@_media-type'] === 'application/xml' &&
+          instance['@_href'].endsWith('.xml') &&
+          !instance['@_href'].includes('manifest') &&
+          !instance['@_href'].includes('directives')
+        ) {
+          jatsRelativePath = instance['@_href'];
+          break;
+        }
+      }
+      if (jatsRelativePath) break;
+    }
+  }
+
+  if (!jatsRelativePath) {
+    throw new Error('No JATS XML file found in manifest');
+  }
+
+  console.log(`  📄 Found JATS file in manifest: ${jatsRelativePath}`);
+
+  // Extract the JATS file using the relative path from manifest
+  const jatsEntry = zip.getEntry(jatsRelativePath);
+  if (jatsEntry) {
+    console.log(`  🔍 Extracting JATS file: ${jatsRelativePath} to ${extractedDir}`);
+
+    // Create the target directory structure if it doesn't exist
+    const jatsTargetPath = path.join(extractedDir, jatsRelativePath);
+    const jatsTargetDir = path.dirname(jatsTargetPath);
+    if (!fs.existsSync(jatsTargetDir)) {
+      fs.mkdirSync(jatsTargetDir, { recursive: true });
+      console.log(`  📁 Created directory: ${jatsTargetDir}`);
+    }
+
+    // Extract the JATS file content and write it to the correct location
+    const jatsContent = jatsEntry.getData();
+    fs.writeFileSync(jatsTargetPath, jatsContent);
+    console.log(`  📄 JATS file extracted: ${path.basename(jatsRelativePath)}`);
+
+    // Verify the file was extracted successfully
+    console.log(`  🔍 Verifying file exists at: ${jatsTargetPath}`);
+
+    if (!fs.existsSync(jatsTargetPath)) {
+      // Debug: list what was actually extracted
+      console.log(`  🔍 Debug: Checking extracted directory contents:`);
+      const listExtractedFiles = (dir: string, prefix = '') => {
+        if (fs.existsSync(dir)) {
+          const items = fs.readdirSync(dir);
+          items.forEach((item) => {
+            const itemPath = path.join(dir, item);
+            const stat = fs.statSync(itemPath);
+            if (stat.isDirectory()) {
+              console.log(`    ${prefix}📁 ${item}/`);
+              listExtractedFiles(itemPath, prefix + '  ');
+            } else {
+              console.log(`    ${prefix}📄 ${item}`);
+            }
+          });
+        }
+      };
+      listExtractedFiles(extractedDir);
+
+      throw new Error(`JATS file was not extracted successfully to: ${jatsTargetPath}`);
+    }
+
+    console.log(`  ✅ JATS file verified at: ${jatsTargetPath}`);
+  } else {
+    throw new Error(`Could not extract JATS file: ${jatsRelativePath}`);
+  }
 
   return extractedDir;
 }
