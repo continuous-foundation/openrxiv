@@ -55,7 +55,8 @@
     "ora": "^7.0.0",
     "adm-zip": "^0.5.10",
     "unified": "^11.0.0",
-    "xast-util-from-xml": "^4.0.0"
+    "xast-util-from-xml": "^4.0.0",
+    "p-limit": "^7.0.0"
   },
   "devDependencies": {
     "@types/cli-progress": "^3.11.0",

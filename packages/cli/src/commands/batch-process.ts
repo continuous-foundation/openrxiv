@@ -2,6 +2,7 @@ import { Command, Option } from 'commander';
 import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
+import pLimit from 'p-limit';
 import { listMonthFiles, type S3FileInfo } from '../aws/month-lister.js';
 import { downloadFile } from '../aws/downloader.js';
 import { processMecaFile } from '../utils/meca-processor.js';
@@ -16,6 +17,8 @@ interface BatchOptions {
   force: boolean;
   keep: boolean;
   fullExtract: boolean;
+  concurrency: number;
+  maxFileSize: string;
   awsBucket: string;
   awsRegion: string;
 }
@@ -42,6 +45,8 @@ export const batchProcessCommand = new Command('batch-process')
     'Extract entire MECA file instead of selective extraction (default: false)',
     false,
   )
+  .option('-c, --concurrency <number>', 'Number of files to process concurrently (default: 1)', '1')
+  .option('--max-file-size <size>', 'Skip files larger than this size (e.g., 100MB, 2GB)', '')
   .option('--aws-bucket <bucket>', 'AWS S3 bucket name', 'biorxiv-src-monthly')
   .option('--aws-region <region>', 'AWS region', 'us-east-1')
   .action(async (options: BatchOptions) => {
@@ -63,6 +68,7 @@ export const batchProcessCommand = new Command('batch-process')
       console.log(`🚀 Starting batch processing for month: ${options.month}`);
       console.log(`📊 Processing limit: ${options.limit} files`);
       console.log(`🔍 Dry run mode: ${options.dryRun ? 'enabled' : 'disabled'}`);
+      console.log(`⚡ Concurrency: ${options.concurrency} files`);
 
       // Create output directory
       if (!fs.existsSync(options.output)) {
@@ -85,9 +91,39 @@ export const batchProcessCommand = new Command('batch-process')
         options.month,
       );
 
-      const filesToProcess = options.force
+      let filesToProcess = options.force
         ? availableFiles
         : availableFiles.filter((file) => !processingStatus[file.s3Key]?.exists);
+
+      // Apply file size filter if specified
+      if (options.maxFileSize) {
+        const maxSizeBytes = parseFileSize(options.maxFileSize);
+        if (maxSizeBytes === null) {
+          console.error(
+            `❌ Invalid max file size format: ${options.maxFileSize}. Use format like "100MB" or "2GB"`,
+          );
+          process.exit(1);
+        }
+
+        const originalCount = filesToProcess.length;
+        filesToProcess = filesToProcess.filter((file) => file.fileSize <= maxSizeBytes);
+        const filteredCount = originalCount - filesToProcess.length;
+
+        if (filteredCount > 0) {
+          console.log(
+            `📏 File size filter: ${options.maxFileSize} max (${formatFileSize(maxSizeBytes)})`,
+          );
+          console.log(`🚫 Skipped ${filteredCount} files larger than ${options.maxFileSize}`);
+
+          // Show size distribution of remaining files
+          const remainingSizes = filesToProcess.map((f) => f.fileSize);
+          const avgSize = remainingSizes.reduce((a, b) => a + b, 0) / remainingSizes.length;
+          const maxSize = Math.max(...remainingSizes);
+          console.log(
+            `📊 Remaining files: avg ${formatFileSize(avgSize)}, max ${formatFileSize(maxSize)}`,
+          );
+        }
+      }
 
       console.log(`📊 Files to process: ${filesToProcess.length}`);
       console.log(`✅ Already processed: ${availableFiles.length - filesToProcess.length}`);
@@ -102,81 +138,91 @@ export const batchProcessCommand = new Command('batch-process')
         return;
       }
 
-      // Step 3: Process files
+      // Step 3: Process files with concurrency control
       let processedCount = 0;
       let errorCount = 0;
+      const startTime = Date.now();
 
-      for (const file of filesToProcess) {
-        try {
-          console.log(`\n🔄 Processing ${file.s3Key}...`);
+      // Create concurrency limiter
+      const limit = pLimit(parseInt(options.concurrency.toString(), 10));
 
-          // Download the MECA file first
-          console.log(`  📥 Downloading ${file.s3Key} from S3...`);
-          await downloadFile(file.s3Key, {
-            output: options.output,
-          });
+      console.log(
+        `📦 Processing ${filesToProcess.length} files with concurrency limit of ${options.concurrency}`,
+      );
 
-          // Get the local file path
-          const localFilePath = path.join(options.output, path.basename(file.s3Key));
-          console.log(`  💾 Downloaded to: ${localFilePath}`);
+      // Create array of processing functions
+      const processingFunctions = filesToProcess.map((file) => {
+        return limit(async () => {
+          try {
+            console.log(`  📥 Starting ${file.s3Key}...`);
 
-          // Get API key from command line or environment variable
-          const apiKey = options.apiKey || process.env.BIORXIV_API_KEY;
+            // Download the MECA file first
+            await downloadFile(file.s3Key, {
+              output: options.output,
+            });
 
-          // Process the MECA file using the utility function
-          const result = await processMecaFile(localFilePath, {
-            batch: file.batch,
-            server: 'biorxiv',
-            apiUrl: options.apiUrl,
-            output: options.output,
-            s3Key: file.s3Key, // Pass the full S3 key for database storage
-            apiKey,
-            selective: !options.fullExtract, // Enable selective extraction unless --full-extract is used
-          });
+            // Get the local file path
+            const localFilePath = path.join(options.output, path.basename(file.s3Key));
 
-          if (result.success) {
-            console.log(`✅ Successfully processed: ${file.s3Key}`);
+            // Get API key from command line or environment variable
+            const apiKey = options.apiKey || process.env.BIORXIV_API_KEY;
+
+            // Process the MECA file using the utility function
+            const result = await processMecaFile(localFilePath, {
+              batch: file.batch,
+              server: 'biorxiv',
+              apiUrl: options.apiUrl,
+              output: options.output,
+              s3Key: file.s3Key, // Pass the full S3 key for database storage
+              apiKey,
+              selective: !options.fullExtract, // Enable selective extraction unless --full-extract is used
+            });
+
+            // Clean up files after processing
+            await cleanupFiles(localFilePath, file, options);
+
+            if (result.success) {
+              console.log(`  ✅ Successfully processed: ${file.s3Key}`);
+              return { success: true, file, localFilePath };
+            } else {
+              console.log(`  ❌ Failed to process: ${file.s3Key} - ${result.error}`);
+              return { success: false, file, localFilePath, error: result.error };
+            }
+          } catch (error) {
+            console.error(`  ❌ Error processing ${file.s3Key}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return { success: false, file, localFilePath: null, error: errorMessage };
+          }
+        });
+      });
+
+      // Process all files with concurrency control
+      const results = await Promise.all(processingFunctions);
+
+      // Process results and cleanup
+      for (const result of results) {
+        if (result && typeof result === 'object' && 'success' in result) {
+          const { success } = result;
+          if (success) {
             processedCount++;
           } else {
-            console.log(`❌ Failed to process: ${file.s3Key} - ${result.error}`);
             errorCount++;
           }
-
-          // Clean up downloaded MECA file unless --keep flag is set
-          if (!options.keep) {
-            try {
-              // Remove the downloaded MECA file
-              if (fs.existsSync(localFilePath)) {
-                fs.unlinkSync(localFilePath);
-                console.log(`  🧹 Cleaned up MECA file: ${path.basename(file.s3Key)}`);
-              }
-
-              // Also clean up any extracted content directory
-              const extractedDir = localFilePath.replace('.meca', '');
-              if (fs.existsSync(extractedDir)) {
-                fs.rmSync(extractedDir, { recursive: true, force: true });
-                console.log(`  🧹 Cleaned up extracted content: ${path.basename(extractedDir)}`);
-              }
-            } catch (cleanupError) {
-              console.warn(
-                `  ⚠️  Warning: Could not clean up files for ${file.s3Key}:`,
-                cleanupError,
-              );
-            }
-          } else {
-            console.log(`  💾 Keeping MECA file: ${path.basename(file.s3Key)}`);
-          }
-        } catch (error) {
-          console.error(`❌ Error processing ${file.s3Key}:`, error);
+        } else {
+          // Invalid result format
           errorCount++;
-        }
-
-        // Check if we've reached the limit
-        if (processedCount >= options.limit) {
-          console.log(`\n🛑 Reached processing limit of ${options.limit} files`);
-          break;
+          console.error(`  ❌ Invalid result format:`, result);
         }
       }
+
+      // Show final progress
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+      const avgTimePerFile = processedCount > 0 ? elapsed / processedCount : 0;
+
+      console.log(
+        `📊 Processing complete. Progress: ${processedCount}/${filesToProcess.length} (${Math.round((processedCount / filesToProcess.length) * 100)}%)`,
+      );
+      console.log(`⏱️  Elapsed: ${elapsed}s, Avg: ${avgTimePerFile.toFixed(1)}s/file`);
 
       // Summary
       console.log(`\n🎉 Batch processing completed!`);
@@ -200,6 +246,75 @@ export const batchProcessCommand = new Command('batch-process')
       process.exit(1);
     }
   });
+
+/**
+ * Clean up files after processing
+ */
+async function cleanupFiles(
+  localFilePath: string | null,
+  file: S3FileInfo,
+  options: BatchOptions,
+): Promise<void> {
+  if (!localFilePath) return;
+
+  try {
+    if (!options.keep) {
+      // Remove the downloaded MECA file
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+        console.log(`    🧹 Cleaned up MECA file: ${path.basename(file.s3Key)}`);
+      }
+
+      // Also clean up any extracted content directory
+      const extractedDir = localFilePath.replace('.meca', '');
+      if (fs.existsSync(extractedDir)) {
+        fs.rmSync(extractedDir, { recursive: true, force: true });
+        console.log(`    🧹 Cleaned up extracted content: ${path.basename(extractedDir)}`);
+      }
+
+      // Clean up any temporary files that might have been created
+      const tempFiles = [
+        localFilePath + '.tmp',
+        localFilePath + '.download',
+        path.dirname(localFilePath) + '/.temp_' + path.basename(localFilePath),
+      ];
+
+      for (const tempFile of tempFiles) {
+        if (fs.existsSync(tempFile)) {
+          try {
+            if (fs.statSync(tempFile).isDirectory()) {
+              fs.rmSync(tempFile, { recursive: true, force: true });
+            } else {
+              fs.unlinkSync(tempFile);
+            }
+            console.log(`    🧹 Cleaned up temp file: ${path.basename(tempFile)}`);
+          } catch (tempError) {
+            // Ignore temp file cleanup errors
+          }
+        }
+      }
+    } else {
+      console.log(`    💾 Keeping MECA file: ${path.basename(file.s3Key)}`);
+
+      // Even when keeping files, clean up extracted content if it's not needed
+      if (!options.keep) {
+        try {
+          const extractedDir = localFilePath.replace('.meca', '');
+          if (fs.existsSync(extractedDir)) {
+            fs.rmSync(extractedDir, { recursive: true, force: true });
+            console.log(
+              `    🧹 Cleaned up extracted content (keeping MECA): ${path.basename(extractedDir)}`,
+            );
+          }
+        } catch (cleanupError) {
+          // Ignore extracted content cleanup errors when keeping MECA
+        }
+      }
+    }
+  } catch (cleanupError) {
+    console.warn(`    ⚠️  Warning: Could not clean up files for ${file.s3Key}:`, cleanupError);
+  }
+}
 
 async function listAvailableFiles(
   month: string,
@@ -308,6 +423,26 @@ async function checkProcessingStatusIndividual(
   }
 
   return status;
+}
+
+function parseFileSize(sizeStr: string): number | null {
+  if (!sizeStr) return null;
+
+  const match = sizeStr.match(/^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)$/i);
+  if (!match) return null;
+
+  const value = parseFloat(match[1]);
+  const unit = match[2].toUpperCase();
+
+  const multipliers: Record<string, number> = {
+    B: 1,
+    KB: 1024,
+    MB: 1024 * 1024,
+    GB: 1024 * 1024 * 1024,
+    TB: 1024 * 1024 * 1024 * 1024,
+  };
+
+  return value * multipliers[unit];
 }
 
 function formatFileSize(bytes: number): string {
