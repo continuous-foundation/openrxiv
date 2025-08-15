@@ -9,7 +9,7 @@ import { processMecaFile } from '../utils/meca-processor.js';
 
 interface BatchOptions {
   month: string;
-  limit: number;
+  limit?: number;
   apiUrl: string;
   apiKey?: string;
   output: string;
@@ -31,7 +31,10 @@ export const batchProcessCommand = new Command('batch-process')
     '-m, --month <month>',
     'Month to process (YYYY-MM format). If not specified, processes backwards from current month to 2020',
   )
-  .option('-l, --limit <number>', 'Maximum number of files to process', '10')
+  .option(
+    '-l, --limit <number>',
+    'Maximum number of files to process. If not specified, processes all available files',
+  )
   .option('-a, --api-url <url>', 'API base URL', 'https://biorxiv.curvenote.dev')
   .addOption(
     new Option(
@@ -69,7 +72,9 @@ export const batchProcessCommand = new Command('batch-process')
     }
     try {
       console.log(`🚀 Starting batch processing for month: ${options.month}`);
-      console.log(`📊 Processing limit: ${options.limit} files`);
+      console.log(
+        `📊 Processing limit: ${options.limit ? `${options.limit} files` : 'all available files'}`,
+      );
       console.log(`🔍 Dry run mode: ${options.dryRun ? 'enabled' : 'disabled'}`);
       console.log(`⚡ Concurrency: ${options.concurrency} files`);
 
@@ -392,12 +397,15 @@ async function cleanupFiles(
 
 async function listAvailableFiles(
   month: string,
-  limit: number,
+  limit: number | undefined,
   options: BatchOptions,
 ): Promise<S3FileInfo[]> {
+  // If no limit specified, use a very large number to get all files
+  const actualLimit = limit || 999999;
+
   return listMonthFiles({
     month,
-    limit,
+    limit: actualLimit,
     awsBucket: options.awsBucket,
     awsRegion: options.awsRegion,
   });
