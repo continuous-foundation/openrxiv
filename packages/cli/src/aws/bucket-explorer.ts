@@ -7,13 +7,15 @@ import { getContentStructure } from '../utils/content-structure.js';
 /**
  * Get the S3 bucket name based on the server
  */
-function getBucketName(server: string = 'biorxiv'): string {
+export function getBucketName(server: 'biorxiv' | 'medrxiv' = 'biorxiv'): string {
   switch (server.toLowerCase()) {
     case 'medrxiv':
       return 'medrxiv-src-monthly';
     case 'biorxiv':
-    default:
       return 'biorxiv-src-monthly';
+    default:
+      console.error(`❌ Error: Invalid server ${server}, must be "biorxiv" or "medrxiv"`);
+      process.exit(1);
   }
 }
 
@@ -21,7 +23,7 @@ export interface ListOptions {
   month?: string;
   batch?: string;
   limit?: number;
-  server?: string;
+  server?: 'biorxiv' | 'medrxiv';
 }
 
 export interface SearchOptions {
@@ -113,7 +115,10 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
  * Lists the available content structure in the specified server bucket
  * Shows available months and batches
  */
-async function listContentStructure(client: S3Client, server: string = 'biorxiv'): Promise<void> {
+async function listContentStructure(
+  client: S3Client,
+  server: 'biorxiv' | 'medrxiv' = 'biorxiv',
+): Promise<void> {
   console.log(chalk.cyan('📁 Available Content Structure'));
   console.log(chalk.cyan('=============================='));
   console.log('');
@@ -217,7 +222,7 @@ async function listContentStructure(client: S3Client, server: string = 'biorxiv'
 
 export async function getContentInfo(
   path: string,
-  options: { detailed?: boolean; server?: string } = {},
+  options: { detailed?: boolean; server?: 'biorxiv' | 'medrxiv' } = {},
 ): Promise<void> {
   const client = await getS3Client();
   const { detailed = false, server = 'biorxiv' } = options;

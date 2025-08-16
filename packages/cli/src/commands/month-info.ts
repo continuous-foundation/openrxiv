@@ -3,11 +3,15 @@ import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import { getS3Client } from '../aws/config.js';
 import { getContentStructure } from '../utils/content-structure.js';
+import { getBucketName } from '../aws/bucket-explorer.js';
 
 export const monthInfoCommand = new Command('month-info')
-  .description('List detailed metadata for all files in a specific month or batch')
+  .description(
+    'List detailed metadata for all files in a specific month or batch from bioRxiv or medRxiv',
+  )
   .option('-m, --month <month>', 'Month to list (e.g., "January_2024" or "2024-01")')
   .option('-b, --batch <batch>', 'Batch to list (e.g., "1", "batch-1", "Batch_01")')
+  .option('-s, --server <server>', 'Server to use: "biorxiv" or "medrxiv"', 'biorxiv')
   .action(async (options) => {
     try {
       await listMonthMetadata(options);
@@ -26,9 +30,14 @@ interface FileMetadata {
   fileExtension: string;
 }
 
-async function listMonthMetadata(options: { month?: string; batch?: string }): Promise<void> {
+async function listMonthMetadata(options: {
+  month?: string;
+  batch?: string;
+  server?: 'biorxiv' | 'medrxiv';
+}): Promise<void> {
   const client = await getS3Client();
-  const { month, batch } = options;
+  const { month, batch, server = 'biorxiv' } = options;
+  const bucketName = getBucketName(server);
 
   if (!month && !batch) {
     console.error('❌ Error: Either --month or --batch option must be specified');
@@ -36,7 +45,7 @@ async function listMonthMetadata(options: { month?: string; batch?: string }): P
   }
 
   // Determine content structure based on options
-  const contentStructure = getContentStructure({ month, batch });
+  const contentStructure = getContentStructure({ month, batch, server });
   const prefix = contentStructure.prefix;
 
   const description = month ? `Month: ${month}` : `Batch: ${batch}`;
@@ -64,7 +73,7 @@ async function listMonthMetadata(options: { month?: string; batch?: string }): P
       console.log(chalk.gray(`📦 Fetching batch ${batchCount}...`));
 
       const command = new ListObjectsV2Command({
-        Bucket: 'biorxiv-src-monthly',
+        Bucket: bucketName,
         Prefix: prefix,
         MaxKeys: 1000,
         ContinuationToken: continuationToken,
@@ -100,7 +109,7 @@ async function listMonthMetadata(options: { month?: string; batch?: string }): P
     console.log(chalk.green(`✅ Total files found: ${allFiles.length}`));
     console.log('');
 
-    displaySummary(allFiles, month || batch || 'unknown');
+    displaySummary(allFiles, month || batch || 'unknown', server);
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to list month metadata: ${error.message}`);
@@ -116,14 +125,14 @@ function getContentType(key: string): 'meca' | 'pdf' | 'xml' | 'other' {
   return 'other';
 }
 
-function displaySummary(files: FileMetadata[], month: string): void {
+function displaySummary(files: FileMetadata[], month: string, server: string = 'biorxiv'): void {
   console.log(chalk.blue.bold('📊 Summary Statistics'));
   console.log(chalk.blue('===================='));
   console.log('');
 
   // Show content structure info if available
   try {
-    const contentStructure = getContentStructure({ month });
+    const contentStructure = getContentStructure({ month, server });
     console.log(chalk.cyan('📁 Content Structure:'));
     console.log(
       `   Type: ${chalk.yellow(contentStructure.type === 'current' ? 'Current Content' : 'Back Content')}`,
