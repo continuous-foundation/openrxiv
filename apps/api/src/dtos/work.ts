@@ -30,8 +30,11 @@ export function formatWorkDTO(baseURL: string, work: Work, parsedDOI: DOIParts):
     title: work.title,
     receivedDate: work.receivedDate,
     acceptedDate: work.acceptedDate,
-    fileSize: Number(work.fileSize),
+    server: work.server,
+    s3Bucket: work.s3Bucket,
+    batch: work.batch,
     s3Key: work.s3Key,
+    fileSize: Number(work.fileSize),
     links,
   };
 }
