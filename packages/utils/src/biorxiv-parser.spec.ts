@@ -17,6 +17,10 @@ describe('BioRxiv URL Parser', () => {
         '10.1101/2024.01.25.577295v3',
       ],
       [
+        'https://www.medrxiv.org/content/10.1101/2020.03.19.20039131v2',
+        '10.1101/2020.03.19.20039131v2',
+      ],
+      [
         'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.article-info',
         '10.1101/2024.01.25.577295v3',
       ],
@@ -103,7 +107,7 @@ describe('BioRxiv URL Parser', () => {
         '10.1000/123.456.789',
         '10.1101/2024.1.25.577295',
         '10.1101/2024.01.25.57729',
-        '10.1101/2024.01.25.5772955',
+        '10.1101/2024.01.25.5772955666',
         '10.1101/2024.01.25.577295v',
         '10.1101/2024.01.25.577295v',
         'invalid-doi',
@@ -122,6 +126,7 @@ describe('BioRxiv URL Parser', () => {
       ['10.1101/2024.01.25.577295', '10.1101/2024.01.25.577295'], // Same DOI
       ['10.1101/2024.01.25.577295v3', '10.1101/2024.01.25.577295'], // Remove version
       ['10.1101/2024.01.25.577295v12', '10.1101/2024.01.25.577295'], // Remove double digit version
+      ['10.1101/2020.03.19.20039131v2', '10.1101/2020.03.19.20039131'], // medrxiv variant
     ])('should extract base DOI from versioned DOI', (doi, expected) => {
       const result = extractBaseDOI(doi);
       expect(result).toBe(expected);
@@ -149,15 +154,14 @@ describe('BioRxiv URL Parser', () => {
       ['10.1101/789012', true],
       ['10.1101/789012v12', true],
       ['10.1101/789012v3', true],
-      // Invalid DOIs
-      ['10.1000/123.456.789', false],
+      ['10.1101/2020.03.19.20039131v2', true],
       ['10.1101/2024.1.25.577295', false],
       ['10.1101/2024.01.25.57729', false],
       ['invalid-doi', false],
       ['10.1101/78901', false],
       ['10.1101/78901v3', false],
       ['', false],
-    ])('should validate correct bioRxiv DOIs', (doi, expected) => {
+    ])('should validate correct bioRxiv DOIs %s', (doi, expected) => {
       const result = isValidBiorxivDOI(doi);
       expect(result).toBe(expected);
     });

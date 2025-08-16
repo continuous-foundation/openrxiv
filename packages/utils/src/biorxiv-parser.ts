@@ -33,6 +33,13 @@ export function extractDOIFromURL(url: string): string | null {
       doi = match[1];
     }
   }
+  // Check for medRxiv content URLs
+  else if (url.includes('medrxiv.org/content/')) {
+    const match = url.match(/medrxiv\.org\/content\/([^?#]+)/);
+    if (match && match[1]) {
+      doi = match[1];
+    }
+  }
   // Check for doi.org redirects
   else if (url.includes('doi.org/')) {
     const match = url.match(/doi\.org\/([^?#]+)/);
@@ -59,7 +66,7 @@ export function extractDOIFromURL(url: string): string | null {
  */
 export function parseDOI(doi: string): DOIParts | null {
   // Handle current date-based format (2019+): 10.1101/YYYY.MM.DD.XXXXXXvN
-  const currentPattern = /^10\.1101\/(\d{4})\.(\d{2})\.(\d{2})\.(\d{6})(v\d+)?$/;
+  const currentPattern = /^10\.1101\/(\d{4})\.(\d{2})\.(\d{2})\.(\d{6,8})(v\d+)?$/;
   const currentMatch = doi.match(currentPattern);
 
   if (currentMatch) {
@@ -78,7 +85,7 @@ export function parseDOI(doi: string): DOIParts | null {
   }
 
   // Handle legacy numeric format (2019 and earlier): 10.1101/XXXXXX
-  const legacyPattern = /^10\.1101\/(\d{6})(v\d+)?$/;
+  const legacyPattern = /^10\.1101\/(\d{6,8})(v\d+)?$/;
   const legacyMatch = doi.match(legacyPattern);
 
   if (legacyMatch) {

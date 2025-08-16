@@ -8,7 +8,7 @@ export const summaryCommand = new Command('summary')
   .description('Get a summary of a bioRxiv preprint from a URL or DOI')
   .argument('<url-or-doi>', 'bioRxiv URL or DOI to summarize')
   .option('-m, --more', 'Show additional details and full abstract')
-  .option('-s, --server <server>', 'Specify server (biorxiv or medrxiv)', 'auto')
+  .option('-s, --server <server>', 'Specify server (biorxiv or medrxiv)')
   .action(async (urlOrDoi: string, options: any) => {
     try {
       console.log(chalk.blue.bold('🔬 BioRxiv Preprint Summary'));
@@ -18,7 +18,11 @@ export const summaryCommand = new Command('summary')
       let doi: string;
       let parsedUrl: any = null;
 
-      if (urlOrDoi.includes('biorxiv.org') || urlOrDoi.includes('doi.org')) {
+      if (
+        urlOrDoi.includes('biorxiv.org') ||
+        urlOrDoi.includes('medrxiv.org') ||
+        urlOrDoi.includes('doi.org')
+      ) {
         // It's a URL
         parsedUrl = parseBiorxivURL(urlOrDoi);
         if (!parsedUrl) {
@@ -35,13 +39,8 @@ export const summaryCommand = new Command('summary')
 
       console.log('');
 
-      // Determine server
-      let server: 'biorxiv' | 'medrxiv';
-      if (options.server === 'auto') {
-        server = getServerFromDOI(doi);
-      } else {
-        server = options.server as 'biorxiv' | 'medrxiv';
-      }
+      // Determine server if possible
+      let server = options.server ?? getServerFromDOI(urlOrDoi);
 
       console.log(chalk.blue(`🌐 Server: ${server}`));
       console.log('');
@@ -58,15 +57,47 @@ export const summaryCommand = new Command('summary')
       console.log('');
 
       // Get content details
-      const contentDetail = await apiClient.getContentDetail(doi);
+      let contentDetail = await apiClient.getContentDetail(doi);
+      let fallbackServer: 'biorxiv' | 'medrxiv' | null = null;
+
+      // If not found on bioRxiv and we're not already on medrxiv, try medrxiv as fallback
+      if (!contentDetail && server === 'biorxiv') {
+        console.log(chalk.yellow('⚠️  Paper not found on bioRxiv, trying medRxiv...'));
+        fallbackServer = 'medrxiv';
+
+        const medrxivApiClient = createBiorxivApiClient({
+          server: 'medrxiv',
+          format: 'json',
+          timeout: 15000,
+        });
+
+        contentDetail = await medrxivApiClient.getContentDetail(doi);
+
+        if (contentDetail) {
+          console.log(chalk.green('✅ Found paper on medRxiv!'));
+          server = 'medrxiv'; // Update server for display
+          contentDetail.server = 'medrxiv'; // Ensure the content detail has the correct server
+        }
+      }
+
       if (!contentDetail) {
-        console.log(chalk.red('❌ No content found for this DOI'));
+        console.log(chalk.red('❌ No content found for this DOI on either bioRxiv or medRxiv'));
         console.log(chalk.yellow("💡 This might be a new preprint that hasn't been indexed yet"));
         process.exit(1);
       }
 
       // Get all versions
-      const allVersions = await apiClient.getAllVersions(doi);
+      let allVersions = await apiClient.getAllVersions(doi);
+
+      // If we used fallback, get versions from the fallback server
+      if (fallbackServer && contentDetail) {
+        const fallbackApiClient = createBiorxivApiClient({
+          server: fallbackServer,
+          format: 'json',
+          timeout: 15000,
+        });
+        allVersions = await fallbackApiClient.getAllVersions(doi);
+      }
 
       // Display summary
       const isVerbose = options.more === true;
@@ -226,8 +257,13 @@ function displaySummary(contentDetail: any, allVersions: any[], verbose: boolean
   }
 
   // Footer
+  const baseUrl =
+    contentDetail.server === 'medrxiv'
+      ? `https://www.medrxiv.org/content/${contentDetail.doi}`
+      : `https://www.biorxiv.org/content/${contentDetail.doi}`;
+
   const footerInfo = [
-    `💡 View online: ${chalk.underline.blue(`https://www.biorxiv.org/content/${contentDetail.doi}`)}`,
+    `💡 View online: ${chalk.underline.blue(baseUrl)}`,
     ...(allVersions && allVersions.length > 1 && !verbose
       ? [
           `📚 This preprint has ${allVersions.length} versions. Use --more to see additional details.`,

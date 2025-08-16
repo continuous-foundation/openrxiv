@@ -396,7 +396,7 @@ export function createBiorxivApiClient(options?: BiorxivApiOptions): BiorxivApiC
 export function getServerFromDOI(doi: string): 'biorxiv' | 'medrxiv' {
   // This is a simple heuristic - in practice, you might want to check both servers
   // or use additional metadata to determine the correct server
-  if (doi.includes('medrxiv') || doi.includes('med')) {
+  if (doi.includes('medrxiv')) {
     return 'medrxiv';
   }
   return 'biorxiv';

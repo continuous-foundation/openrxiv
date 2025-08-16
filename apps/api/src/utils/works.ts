@@ -5,7 +5,7 @@ import { formatWorkDTO } from '@/dtos/work';
 
 // Zod validation schema for creating works
 export const createWorkSchema = z.object({
-  doi: z.string().regex(/^10\.1101\/(\d{4}\.\d{2}\.\d{2}\.)?\d{6}(v\d+)?$/, {
+  doi: z.string().regex(/^10\.1101\/(\d{4}\.\d{2}\.\d{2}\.)?\d{6,8}(v\d+)?$/, {
     message:
       'DOI must be in bioRxiv format: 10.1101/YYYY.MM.DD.XXXXXX or 10.1101/YYYY.MM.DD.XXXXXXvN or 10.1101/XXXXXX or 10.1101/XXXXXXvN',
   }),
@@ -27,7 +27,7 @@ export type CreateWorkRequest = z.infer<typeof createWorkSchema>;
 
 // Zod validation schemas for delete requests
 export const deleteByDoiSchema = z.object({
-  doi: z.string().regex(/^10\.1101\/(\d{4}\.\d{2}\.\d{2}\.)?\d{6}(v\d+)?$/, {
+  doi: z.string().regex(/^10\.1101\/(\d{4}\.\d{2}\.\d{2}\.)?\d{6,8}(v\d+)?$/, {
     message:
       'DOI must be in bioRxiv format: 10.1101/YYYY.MM.DD.XXXXXX or 10.1101/YYYY.MM.DD.XXXXXXvN or 10.1101/XXXXXX or 10.1101/XXXXXXvN',
   }),
