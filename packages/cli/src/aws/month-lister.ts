@@ -1,5 +1,6 @@
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getS3Client } from './config.js';
+import { getContentStructure } from '../utils/content-structure.js';
 
 export interface S3FileInfo {
   s3Bucket: string;
@@ -10,7 +11,8 @@ export interface S3FileInfo {
 }
 
 export interface ListMonthOptions {
-  month: string; // Format: "YYYY-MM" (e.g., "2025-01")
+  month?: string; // Format: "YYYY-MM" (e.g., "2025-01")
+  batch?: string; // Format: "Batch_01" for Back_Content
   limit?: number; // Max number of files to return
   awsBucket: string;
   awsRegion?: string;
@@ -20,39 +22,28 @@ export interface ListMonthOptions {
  * Lists MECA files in S3 for a specific month with pagination support
  */
 export async function listMonthFiles(options: ListMonthOptions): Promise<S3FileInfo[]> {
-  const { month, limit = 1000, awsBucket } = options;
+  const { month, batch, limit = 1000, awsBucket } = options;
 
-  console.log(`🔍 Listing files for month: ${month} from AWS S3 bucket: ${awsBucket}`);
+  if (!month && !batch) {
+    throw new Error('Either month or batch must be specified');
+  }
+
+  const description = month ? `month: ${month}` : `batch: ${batch}`;
+  console.log(`🔍 Listing files for ${description} from AWS S3 bucket: ${awsBucket}`);
 
   try {
     const s3Client = await getS3Client();
 
-    // Convert month format from YYYY-MM to Month_YYYY (e.g., "2025-01" -> "January_2025")
-    const monthParts = month.split('-');
-    const year = monthParts[0];
-    const monthNum = parseInt(monthParts[1]);
+    // Determine content structure based on options
+    const contentStructure = getContentStructure({ month, batch });
+    const s3Prefix = contentStructure.prefix;
 
-    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
-      throw new Error(`Invalid month format: ${month}. Expected YYYY-MM format.`);
+    console.log(
+      `🔍 Content Type: ${contentStructure.type === 'current' ? 'Current Content' : 'Back Content'}`,
+    );
+    if (contentStructure.batch) {
+      console.log(`🔍 Batch: ${contentStructure.batch}`);
     }
-
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    const monthName = monthNames[monthNum - 1];
-    const s3Prefix = `Current_Content/${monthName}_${year}/`;
-
     console.log(`🔍 Searching S3 prefix: ${s3Prefix}`);
 
     const allFiles: S3FileInfo[] = [];
@@ -91,7 +82,7 @@ export async function listMonthFiles(options: ListMonthOptions): Promise<S3FileI
             s3Key: s3Key, // This is already the full path from S3
             fileSize: fileSize,
             lastModified: lastModified,
-            batch: `${monthName}_${year}`,
+            batch: contentStructure.batch,
           };
 
           allFiles.push(fileInfo);

@@ -15,7 +15,8 @@ import {
 } from '../utils/index.js';
 
 interface BatchOptions {
-  month: string;
+  month?: string;
+  batch?: string;
   limit?: number;
   apiUrl: string;
   apiKey?: string;
@@ -31,12 +32,14 @@ interface BatchOptions {
 }
 
 export const batchProcessCommand = new Command('batch-process')
-  .description(
-    'Batch process MECA files for a given month. Use --keep to preserve downloaded files.',
-  )
+  .description('Batch process MECA files for a given month or batch.')
   .option(
     '-m, --month <month>',
     'Month(s) to process. Supports: YYYY-MM, comma-separated list (2025-01,2025-02), or wildcard pattern (2025-*). If not specified, processes backwards from current month to 2018-12',
+  )
+  .option(
+    '-b, --batch <batch>',
+    'Batch to process (e.g., "1", "batch-1", "Batch_01"). Use this for historical content before 2018-12.',
   )
   .option(
     '-l, --limit <number>',
@@ -78,7 +81,14 @@ export const batchProcessCommand = new Command('batch-process')
       process.exit(1);
     }
     try {
-      console.log(`🚀 Starting batch processing for month: ${options.month}`);
+      if (options.batch) {
+        console.log(`🚀 Starting batch processing for batch: ${options.batch}`);
+      } else if (options.month) {
+        console.log(`🚀 Starting batch processing for month: ${options.month}`);
+      } else {
+        console.log(`🚀 Starting backwards batch processing`);
+      }
+
       console.log(
         `📊 Processing limit: ${options.limit ? `${options.limit} files` : 'all available files'}`,
       );

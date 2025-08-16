@@ -1,6 +1,8 @@
-import { S3Client, ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
+import type { S3Client } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
-import { getS3Client, getGlobalRequesterPays } from './config.js';
+import { getS3Client } from './config.js';
+import { getContentStructure } from '../utils/content-structure.js';
 
 export interface ListOptions {
   month?: string;
@@ -28,23 +30,36 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
   console.log(chalk.blue('===================================='));
 
   try {
+    // If no month or batch specified, show the available content structure
+    if (!month && !batch) {
+      await listContentStructure(client);
+      return;
+    }
+
     let prefix = '';
-    if (month) {
-      prefix = `Current_Content/${month}/`;
-    } else if (batch) {
-      prefix = `Back_Content/${batch}/`;
+    let contentStructure = null;
+
+    if (month || batch) {
+      // Use content structure utility to determine the correct prefix
+      contentStructure = getContentStructure({ month, batch });
+      prefix = contentStructure.prefix;
+
+      console.log(
+        chalk.gray(
+          `🔍 Content Type: ${contentStructure.type === 'current' ? 'Current Content' : 'Back Content'}`,
+        ),
+      );
+      if (contentStructure.batch) {
+        console.log(chalk.gray(`🔍 Batch: ${contentStructure.batch}`));
+      }
     }
 
     const commandOptions: any = {
       Bucket: 'biorxiv-src-monthly',
       Prefix: prefix,
       MaxKeys: parseInt(limit.toString()),
+      RequestPayer: 'requester',
     };
-
-    // Only add RequestPayer if requester pays is enabled
-    if (getGlobalRequesterPays()) {
-      commandOptions.RequestPayer = 'requester';
-    }
 
     const command = new ListObjectsV2Command(commandOptions);
 
@@ -79,83 +94,108 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
   }
 }
 
-export async function searchContent(query: string, options: SearchOptions): Promise<void> {
-  const client = await getS3Client();
-  const { type = 'all', limit = 20 } = options;
-
-  console.log(chalk.blue(`Searching for "${query}" in bioRxiv bucket...`));
-  console.log(chalk.blue('=============================================='));
+/**
+ * Lists the available content structure in the bioRxiv bucket
+ * Shows available months and batches
+ */
+async function listContentStructure(client: S3Client): Promise<void> {
+  console.log(chalk.cyan('📁 Available Content Structure'));
+  console.log(chalk.cyan('=============================='));
+  console.log('');
 
   try {
-    // Search in both Current_Content and Back_Content
-    const prefixes = ['Current_Content/', 'Back_Content/'];
-    const results: ContentItem[] = [];
-
-    for (const prefix of prefixes) {
-      const commandOptions: any = {
-        Bucket: 'biorxiv-src-monthly',
-        Prefix: prefix,
-        MaxKeys: 1000, // Get more items for searching
-      };
-
-      // Only add RequestPayer if requester pays is enabled
-      if (getGlobalRequesterPays()) {
-        commandOptions.RequestPayer = 'requester';
-      }
-
-      const command = new ListObjectsV2Command(commandOptions);
-
-      const response = await client.send(command);
-
-      if (response.Contents) {
-        for (const item of response.Contents) {
-          if (!item.Key) continue;
-
-          if (item.Key.toLowerCase().includes(query.toLowerCase())) {
-            const contentType = getContentType(item.Key);
-
-            if (type === 'all' || contentType === type) {
-              results.push({
-                key: item.Key,
-                size: item.Size || 0,
-                lastModified: item.LastModified || new Date(),
-                type: contentType,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Sort by last modified date (newest first)
-    results.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
-
-    // Limit results
-    const limitedResults = results.slice(0, parseInt(limit.toString()));
-
-    if (limitedResults.length === 0) {
-      console.log(chalk.yellow('No content found matching your search'));
-      return;
-    }
-
-    console.log(chalk.green(`Found ${limitedResults.length} matching items:`));
+    // List Current_Content folders (monthly content)
+    console.log(chalk.blue('📅 Current Content (Monthly):'));
+    console.log(chalk.gray('   Recent content organized by month'));
     console.log('');
 
-    for (const item of limitedResults) {
-      const size = formatFileSize(item.size);
-      const date = item.lastModified.toLocaleDateString();
+    const currentContentCommand = new ListObjectsV2Command({
+      Bucket: 'biorxiv-src-monthly',
+      Prefix: 'Current_Content/',
+      Delimiter: '/',
+      MaxKeys: 1000,
+      RequestPayer: 'requester',
+    });
 
-      console.log(`${chalk.cyan(item.key)}`);
-      console.log(
-        `  Type: ${chalk.yellow(item.type)} | Size: ${chalk.blue(size)} | Modified: ${chalk.gray(date)}`,
-      );
-      console.log('');
+    const currentResponse = await client.send(currentContentCommand);
+
+    if (currentResponse.CommonPrefixes && currentResponse.CommonPrefixes.length > 0) {
+      const months = currentResponse.CommonPrefixes.map((prefix) =>
+        prefix.Prefix?.replace('Current_Content/', '').replace('/', ''),
+      )
+        .filter(Boolean)
+        .sort((a, b) => {
+          // Sort by year first, then by month
+          const [monthA, yearA] = a!.split('_');
+          const [monthB, yearB] = b!.split('_');
+          if (yearA !== yearB) return parseInt(yearB) - parseInt(yearA); // Newest year first
+          const monthOrder = [
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ];
+          return monthOrder.indexOf(monthB) - monthOrder.indexOf(monthA);
+        });
+
+      for (const month of months) {
+        console.log(`   ${chalk.green('📁')} ${chalk.cyan(month)}`);
+      }
+    } else {
+      console.log(chalk.gray('   No monthly content found'));
     }
+
+    console.log('');
+
+    // List Back_Content batches
+    console.log(chalk.blue('📦 Back Content (Historical Batches):'));
+    console.log(chalk.gray('   Legacy content organized in batches'));
+    console.log('');
+
+    const backContentCommand = new ListObjectsV2Command({
+      Bucket: 'biorxiv-src-monthly',
+      Prefix: 'Back_Content/',
+      Delimiter: '/',
+      MaxKeys: 1000,
+      RequestPayer: 'requester',
+    });
+
+    const backResponse = await client.send(backContentCommand);
+
+    if (backResponse.CommonPrefixes && backResponse.CommonPrefixes.length > 0) {
+      const batches = backResponse.CommonPrefixes.map((prefix) =>
+        prefix.Prefix?.replace('Back_Content/', '').replace('/', ''),
+      )
+        .filter(Boolean)
+        .sort();
+
+      for (const batch of batches) {
+        console.log(`   ${chalk.green('📁')} ${chalk.cyan(batch)}`);
+      }
+    } else {
+      console.log(chalk.gray('   No historical batches found'));
+    }
+
+    console.log('');
+    console.log(chalk.blue('💡 Usage Examples:'));
+    console.log(chalk.gray('   List specific month: biorxiv list --month 2024-01'));
+    console.log(chalk.gray('   List specific batch: biorxiv list --batch Batch_01'));
+    console.log(chalk.gray('   List with limit: biorxiv list --month 2024-01 --limit 100'));
+    console.log('');
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Search failed: ${error.message}`);
+      console.log(chalk.yellow(`⚠️  Warning: Could not fetch content structure: ${error.message}`));
+      console.log(chalk.gray('   This may be due to AWS permissions or network issues'));
+      console.log('');
     }
-    throw error;
   }
 }
 
@@ -170,12 +210,8 @@ export async function getContentInfo(path: string, options: { detailed?: boolean
     const commandOptions: any = {
       Bucket: 'biorxiv-src-monthly',
       Key: path,
+      RequestPayer: 'requester',
     };
-
-    // Only add RequestPayer if requester pays is enabled
-    if (getGlobalRequesterPays()) {
-      commandOptions.RequestPayer = 'requester';
-    }
 
     const command = new HeadObjectCommand(commandOptions);
 

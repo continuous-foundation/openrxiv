@@ -2,6 +2,7 @@ import { Command, Option } from 'commander';
 import axios from 'axios';
 import { downloadFile } from '../aws/downloader.js';
 import { setGlobalRequesterPays } from '../aws/config.js';
+import { displayRequesterPaysError } from '../utils/requester-pays-error.js';
 
 export const downloadCommand = new Command('download')
   .description('Download MECA files from the bioRxiv S3 bucket by DOI')
@@ -65,20 +66,7 @@ export const downloadCommand = new Command('download')
           downloadError instanceof Error ? downloadError.message : String(downloadError);
 
         if (errorMessage.includes('UnknownError') || errorMessage.includes('AccessDenied')) {
-          console.error('❌ Download failed: S3 bucket requires requester-pays');
-          console.error('💡 This bucket has requester-pays enabled, which means:');
-          console.error('   • You need to pay for data transfer costs');
-          console.error('   • Your AWS credentials must be configured');
-          console.error('   • The bucket policy must allow your account');
-          console.error('');
-          console.error('🔧 To fix this:');
-          console.error('   1. Ensure your AWS credentials are configured');
-          console.error('   2. Verify you have permission to access the bucket');
-          console.error('   3. Add the --requester-pays flag to your command');
-          console.error('');
-          console.error(
-            '📚 For more help, see: https://docs.aws.amazon.com/AmazonS3/latest/userguide/RequesterPaysBuckets.html',
-          );
+          displayRequesterPaysError();
         } else {
           console.error('❌ Download failed:', errorMessage);
         }
@@ -87,7 +75,7 @@ export const downloadCommand = new Command('download')
     } catch (error) {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 404) {
-          console.error('❌ Paper not found with the specified DOI');
+          console.error('❌ Article not found with the specified DOI');
         } else if (error.response?.status === 401) {
           console.error('❌ Authentication failed. Please check your API key');
         } else {

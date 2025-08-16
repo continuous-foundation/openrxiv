@@ -1,18 +1,16 @@
 import { Command } from 'commander';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import { getS3Client } from '../aws/config.js';
+import { getContentStructure } from '../utils/content-structure.js';
 
 export const monthInfoCommand = new Command('month-info')
-  .description('List detailed metadata for all files in a specific month')
-  .argument('<month>', 'Month to list (e.g., "January_2024" or "2024-01")')
-  .option('-l, --limit <number>', 'Limit the number of results (default: all)', 'all')
-  .option('-t, --type <type>', 'Filter by file type (meca, pdf, xml, all)', 'all')
-  .option('-s, --sort <field>', 'Sort by field (name, size, date)', 'date')
-  .option('--summary', 'Show summary statistics only')
-  .action(async (month, options) => {
+  .description('List detailed metadata for all files in a specific month or batch')
+  .option('-m, --month <month>', 'Month to list (e.g., "January_2024" or "2024-01")')
+  .option('-b, --batch <batch>', 'Batch to list (e.g., "1", "batch-1", "Batch_01")')
+  .action(async (options) => {
     try {
-      await listMonthMetadata(month, options);
+      await listMonthMetadata(options);
     } catch (error) {
       console.error('Error listing month metadata:', error);
       process.exit(1);
@@ -28,15 +26,30 @@ interface FileMetadata {
   fileExtension: string;
 }
 
-async function listMonthMetadata(month: string, options: any): Promise<void> {
+async function listMonthMetadata(options: { month?: string; batch?: string }): Promise<void> {
   const client = await getS3Client();
+  const { month, batch } = options;
 
-  // Normalize month format
-  const normalizedMonth = normalizeMonthFormat(month);
-  const prefix = `Current_Content/${normalizedMonth}/`;
+  if (!month && !batch) {
+    console.error('❌ Error: Either --month or --batch option must be specified');
+    process.exit(1);
+  }
 
-  console.log(chalk.blue(`📅 Month Information: ${normalizedMonth}`));
+  // Determine content structure based on options
+  const contentStructure = getContentStructure({ month, batch });
+  const prefix = contentStructure.prefix;
+
+  const description = month ? `Month: ${month}` : `Batch: ${batch}`;
+  console.log(chalk.blue(`📅 Month/Batch Information: ${description}`));
   console.log(chalk.blue('===================================='));
+  console.log(
+    chalk.gray(
+      `🔍 Content Type: ${contentStructure.type === 'current' ? 'Current Content' : 'Back Content'}`,
+    ),
+  );
+  if (contentStructure.batch) {
+    console.log(chalk.gray(`🔍 Batch: ${contentStructure.batch}`));
+  }
   console.log(chalk.gray(`🔍 Scanning S3 prefix: ${prefix}`));
   console.log('');
 
@@ -66,9 +79,6 @@ async function listMonthMetadata(month: string, options: any): Promise<void> {
 
           const type = getContentType(item.Key);
 
-          // Apply type filter
-          if (options.type !== 'all' && type !== options.type) continue;
-
           allFiles.push({
             key: item.Key,
             size: item.Size || 0,
@@ -90,47 +100,13 @@ async function listMonthMetadata(month: string, options: any): Promise<void> {
     console.log(chalk.green(`✅ Total files found: ${allFiles.length}`));
     console.log('');
 
-    if (options.summary) {
-      displaySummary(allFiles, normalizedMonth);
-    } else {
-      displayDetailedList(allFiles, options);
-    }
+    displaySummary(allFiles, month || batch || 'unknown');
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to list month metadata: ${error.message}`);
     }
     throw error;
   }
-}
-
-function normalizeMonthFormat(month: string): string {
-  // Handle different input formats
-  if (month.includes('_')) {
-    return month; // Already in "January_2024" format
-  }
-
-  // Convert "2024-01" to "January_2024"
-  if (month.match(/^\d{4}-\d{2}$/)) {
-    const [year, monthNum] = month.split('-');
-    const monthNames = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    const monthName = monthNames[parseInt(monthNum) - 1];
-    return `${monthName}_${year}`;
-  }
-
-  return month; // Return as-is if can't parse
 }
 
 function getContentType(key: string): 'meca' | 'pdf' | 'xml' | 'other' {
@@ -144,6 +120,21 @@ function displaySummary(files: FileMetadata[], month: string): void {
   console.log(chalk.blue.bold('📊 Summary Statistics'));
   console.log(chalk.blue('===================='));
   console.log('');
+
+  // Show content structure info if available
+  try {
+    const contentStructure = getContentStructure({ month });
+    console.log(chalk.cyan('📁 Content Structure:'));
+    console.log(
+      `   Type: ${chalk.yellow(contentStructure.type === 'current' ? 'Current Content' : 'Back Content')}`,
+    );
+    if (contentStructure.batch) {
+      console.log(`   Batch: ${chalk.yellow(contentStructure.batch)}`);
+    }
+    console.log('');
+  } catch (error) {
+    // Ignore errors in summary display
+  }
 
   // File type breakdown
   const typeCounts = files.reduce(
@@ -196,59 +187,6 @@ function displaySummary(files: FileMetadata[], month: string): void {
   // Show batch analysis
   console.log('');
   analyzeBatchPatterns(sortedDates);
-}
-
-function displayDetailedList(files: FileMetadata[], options: any): void {
-  // Apply limit
-  let displayFiles = files;
-  if (options.limit !== 'all') {
-    const limit = parseInt(options.limit);
-    displayFiles = files.slice(0, limit);
-    if (files.length > limit) {
-      console.log(chalk.yellow(`⚠️  Showing first ${limit} files (${files.length} total)`));
-      console.log('');
-    }
-  }
-
-  // Sort files
-  displayFiles.sort((a, b) => {
-    switch (options.sort) {
-      case 'name':
-        return a.fileName.localeCompare(b.fileName);
-      case 'size':
-        return b.size - a.size; // Largest first
-      case 'date':
-      default:
-        return b.lastModified.getTime() - a.lastModified.getTime(); // Newest first
-    }
-  });
-
-  console.log(chalk.blue.bold('📋 File Details'));
-  console.log(chalk.blue('==============='));
-  console.log('');
-
-  for (const file of displayFiles) {
-    const size = formatFileSize(file.size);
-    const date = file.lastModified.toLocaleDateString();
-    const time = file.lastModified.toLocaleTimeString();
-
-    // Color code by file type
-    const typeColor = getTypeColor(file.type);
-    const sizeColor = getSizeColor(file.size);
-
-    console.log(`${chalk.cyan(file.fileName)}`);
-    console.log(`  ${chalk.gray('Type:')} ${typeColor(file.type.toUpperCase())}`);
-    console.log(`  ${chalk.gray('Size:')} ${sizeColor(size)}`);
-    console.log(`  ${chalk.gray('Modified:')} ${chalk.gray(date)} ${chalk.gray(time)}`);
-    console.log(`  ${chalk.gray('Path:')} ${chalk.gray(file.key)}`);
-    console.log('');
-  }
-
-  // Show summary at the end
-  console.log(
-    chalk.blue('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'),
-  );
-  displaySummary(files, '');
 }
 
 function displayUploadDateHistogram(files: FileMetadata[]): [string, number][] {
@@ -306,29 +244,12 @@ function analyzeBatchPatterns(dateGroups: [string, number][]): void {
 
   // Analyze upload patterns
   const totalDays = dateGroups.length;
-  const totalFiles = dateGroups.reduce((sum, [_, count]) => sum + count, 0);
+  const totalFiles = dateGroups.reduce((sum, [, count]) => sum + count, 0);
   const avgFilesPerDay = totalFiles / totalDays;
 
   console.log(`   Total active days: ${chalk.green(totalDays)}`);
   console.log(`   Average files per day: ${chalk.green(avgFilesPerDay.toFixed(1))}`);
   console.log('');
-}
-
-function getTypeColor(type: string) {
-  const colors = {
-    meca: chalk.green,
-    pdf: chalk.blue,
-    xml: chalk.yellow,
-    other: chalk.gray,
-  };
-  return colors[type as keyof typeof colors] || chalk.gray;
-}
-
-function getSizeColor(size: number) {
-  if (size < 1024 * 1024) return chalk.green; // < 1 MB
-  if (size < 10 * 1024 * 1024) return chalk.yellow; // 1-10 MB
-  if (size < 100 * 1024 * 1024) return chalk.blue; // 10-100 MB
-  return chalk.red; // > 100 MB
 }
 
 function formatFileSize(bytes: number): string {
