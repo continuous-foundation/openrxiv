@@ -4,10 +4,24 @@ import chalk from 'chalk';
 import { getS3Client } from './config.js';
 import { getContentStructure } from '../utils/content-structure.js';
 
+/**
+ * Get the S3 bucket name based on the server
+ */
+function getBucketName(server: string = 'biorxiv'): string {
+  switch (server.toLowerCase()) {
+    case 'medrxiv':
+      return 'medrxiv-src-monthly';
+    case 'biorxiv':
+    default:
+      return 'biorxiv-src-monthly';
+  }
+}
+
 export interface ListOptions {
   month?: string;
   batch?: string;
   limit?: number;
+  server?: string;
 }
 
 export interface SearchOptions {
@@ -24,15 +38,16 @@ export interface ContentItem {
 
 export async function listBucketContent(options: ListOptions): Promise<void> {
   const client = await getS3Client();
-  const { month, batch, limit = 50 } = options;
+  const { month, batch, limit = 50, server = 'biorxiv' } = options;
+  const bucketName = getBucketName(server);
 
-  console.log(chalk.blue('Listing bioRxiv bucket content...'));
+  console.log(chalk.blue(`Listing ${server} bucket content...`));
   console.log(chalk.blue('===================================='));
 
   try {
     // If no month or batch specified, show the available content structure
     if (!month && !batch) {
-      await listContentStructure(client);
+      await listContentStructure(client, server);
       return;
     }
 
@@ -41,7 +56,7 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
 
     if (month || batch) {
       // Use content structure utility to determine the correct prefix
-      contentStructure = getContentStructure({ month, batch });
+      contentStructure = getContentStructure({ month, batch, server });
       prefix = contentStructure.prefix;
 
       console.log(
@@ -55,7 +70,7 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
     }
 
     const commandOptions: any = {
-      Bucket: 'biorxiv-src-monthly',
+      Bucket: bucketName,
       Prefix: prefix,
       MaxKeys: parseInt(limit.toString()),
       RequestPayer: 'requester',
@@ -95,10 +110,10 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
 }
 
 /**
- * Lists the available content structure in the bioRxiv bucket
+ * Lists the available content structure in the specified server bucket
  * Shows available months and batches
  */
-async function listContentStructure(client: S3Client): Promise<void> {
+async function listContentStructure(client: S3Client, server: string = 'biorxiv'): Promise<void> {
   console.log(chalk.cyan('📁 Available Content Structure'));
   console.log(chalk.cyan('=============================='));
   console.log('');
@@ -109,8 +124,9 @@ async function listContentStructure(client: S3Client): Promise<void> {
     console.log(chalk.gray('   Recent content organized by month'));
     console.log('');
 
+    const bucketName = getBucketName(server);
     const currentContentCommand = new ListObjectsV2Command({
-      Bucket: 'biorxiv-src-monthly',
+      Bucket: bucketName,
       Prefix: 'Current_Content/',
       Delimiter: '/',
       MaxKeys: 1000,
@@ -161,7 +177,7 @@ async function listContentStructure(client: S3Client): Promise<void> {
     console.log('');
 
     const backContentCommand = new ListObjectsV2Command({
-      Bucket: 'biorxiv-src-monthly',
+      Bucket: bucketName,
       Prefix: 'Back_Content/',
       Delimiter: '/',
       MaxKeys: 1000,
@@ -186,9 +202,9 @@ async function listContentStructure(client: S3Client): Promise<void> {
 
     console.log('');
     console.log(chalk.blue('💡 Usage Examples:'));
-    console.log(chalk.gray('   List specific month: biorxiv list --month 2024-01'));
-    console.log(chalk.gray('   List specific batch: biorxiv list --batch Batch_01'));
-    console.log(chalk.gray('   List with limit: biorxiv list --month 2024-01 --limit 100'));
+    console.log(chalk.gray(`   List specific month: ${server} list --month 2024-01`));
+    console.log(chalk.gray(`   List specific batch: ${server} list --batch Batch_01`));
+    console.log(chalk.gray(`   List with limit: ${server} list --month 2024-01 --limit 100`));
     console.log('');
   } catch (error) {
     if (error instanceof Error) {
@@ -199,16 +215,20 @@ async function listContentStructure(client: S3Client): Promise<void> {
   }
 }
 
-export async function getContentInfo(path: string, options: { detailed?: boolean }): Promise<void> {
+export async function getContentInfo(
+  path: string,
+  options: { detailed?: boolean; server?: string } = {},
+): Promise<void> {
   const client = await getS3Client();
-  const { detailed = false } = options;
+  const { detailed = false, server = 'biorxiv' } = options;
+  const bucketName = getBucketName(server);
 
   console.log(chalk.blue(`Getting info for: ${path}`));
   console.log(chalk.blue('=============================='));
 
   try {
     const commandOptions: any = {
-      Bucket: 'biorxiv-src-monthly',
+      Bucket: bucketName,
       Key: path,
       RequestPayer: 'requester',
     };

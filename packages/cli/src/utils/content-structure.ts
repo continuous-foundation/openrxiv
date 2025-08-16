@@ -16,27 +16,31 @@ export interface ContentStructure {
 export interface ContentStructureOptions {
   month?: string;
   batch?: string;
+  server?: string;
 }
 
 /**
  * Normalizes batch input to the standard "Batch_XX" format
  * @param batch - Batch input in various formats (e.g., "1", "batch-1", "Batch_01", "batch_01")
- * @returns Normalized batch string in "Batch_XX" format
+ * @param server - Server type to determine batch format (e.g., "biorxiv", "medrxiv")
+ * @returns Normalized batch string in appropriate format
  */
-export function normalizeBatch(batch: string | number): string {
+export function normalizeBatch(batch: string | number, server: string = 'biorxiv'): string {
   if (typeof batch === 'number') {
     if (batch < 1) {
       throw new Error(
         `Invalid batch format: ${batch}. Expected a positive number or batch identifier.`,
       );
     }
-    return `Batch_${batch.toString().padStart(2, '0')}`;
+    const batchNum = batch.toString().padStart(2, '0');
+    return server.toLowerCase() === 'medrxiv' ? `medRxiv_Batch_${batchNum}` : `Batch_${batchNum}`;
   }
 
   // Remove common prefixes and normalize
   const normalized = batch
     .toLowerCase()
     .replace(/^batch[-_]?/i, '') // Remove "batch", "batch-", "batch_"
+    .replace(/^medrxiv[-_]?batch[-_]?/i, '') // Remove "medrxiv_batch", "medrxiv-batch", etc.
     .replace(/^0+/, '') // Remove leading zeros
     .trim();
 
@@ -48,7 +52,10 @@ export function normalizeBatch(batch: string | number): string {
     );
   }
 
-  return `Batch_${batchNum.toString().padStart(2, '0')}`;
+  const formattedBatchNum = batchNum.toString().padStart(2, '0');
+  return server.toLowerCase() === 'medrxiv'
+    ? `medRxiv_Batch_${formattedBatchNum}`
+    : `Batch_${formattedBatchNum}`;
 }
 
 /**
@@ -66,7 +73,7 @@ export function getContentStructure(options: ContentStructureOptions): ContentSt
 
   if (options.batch) {
     // If batch is specified, use Back_Content structure
-    const normalizedBatch = normalizeBatch(options.batch);
+    const normalizedBatch = normalizeBatch(options.batch, options.server);
     return {
       type: 'back',
       prefix: `Back_Content/${normalizedBatch}/`,
