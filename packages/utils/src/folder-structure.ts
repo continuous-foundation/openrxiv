@@ -1,22 +1,23 @@
 /**
- * Utility functions for determining bioRxiv content structure
+ * Utility functions for determining bioRxiv folder structure
  * based on the date requested.
  *
- * According to bioRxiv documentation:
+ * The bioRxiv structure is:
  * - Before late 2018: Files are in Back_Content/Batch_[nn]/ folders
  * - After late 2018: Files are in Current_Content/[Month]_[Year]/ folders
  */
 
-export interface ContentStructure {
+export interface FolderStructure {
+  server: 'biorxiv' | 'medrxiv';
   type: 'current' | 'back';
   prefix: string;
   batch: string;
 }
 
-export interface ContentStructureOptions {
+export interface FolderStructureOptions {
+  server?: 'biorxiv' | 'medrxiv';
   month?: string;
   batch?: string;
-  server?: string;
 }
 
 /**
@@ -44,6 +45,13 @@ export function normalizeBatch(batch: string | number, server: string = 'biorxiv
     .replace(/^0+/, '') // Remove leading zeros
     .trim();
 
+  const matchInt = normalized.match(/^\d+$/);
+  if (!matchInt) {
+    throw new Error(
+      `Invalid batch format: ${batch}. Expected a positive number or batch identifier.`,
+    );
+  }
+
   // Parse the number and format it
   const batchNum = parseInt(normalized, 10);
   if (isNaN(batchNum) || batchNum < 1) {
@@ -59,11 +67,11 @@ export function normalizeBatch(batch: string | number, server: string = 'biorxiv
 }
 
 /**
- * Determines the content structure for a given month or batch
+ * Determines the folder structure for a given month or batch
  * @param options - Options containing month or batch
- * @returns ContentStructure with the appropriate prefix and type
+ * @returns FolderStructure with the appropriate prefix and type
  */
-export function getContentStructure(options: ContentStructureOptions): ContentStructure {
+export function getFolderStructure(options: FolderStructureOptions): FolderStructure {
   if (options.month && options.batch) {
     throw new Error('Either month or batch must be specified, not both');
   }
@@ -75,6 +83,7 @@ export function getContentStructure(options: ContentStructureOptions): ContentSt
     // If batch is specified, use Back_Content structure
     const normalizedBatch = normalizeBatch(options.batch, options.server);
     return {
+      server: options.server || 'biorxiv',
       type: 'back',
       prefix: `Back_Content/${normalizedBatch}/`,
       batch: normalizedBatch,
@@ -109,13 +118,54 @@ export function getContentStructure(options: ContentStructureOptions): ContentSt
       // Use Current_Content structure
       const monthName = getMonthName(monthNum);
       return {
+        server: options.server || 'biorxiv',
         type: 'current',
         prefix: `Current_Content/${monthName}_${year}/`,
         batch: `${monthName}_${year}`,
       };
     }
   }
-  throw new Error('Invalid content structure options');
+  throw new Error('Invalid folder structure options');
+}
+
+export function removeDuplicateFolders(folders: FolderStructure[]): FolderStructure[] {
+  return folders.filter(
+    (folder, index, arr) =>
+      arr.findIndex(
+        (f) =>
+          f.batch === folder.batch &&
+          f.server === folder.server &&
+          f.type === folder.type &&
+          f.prefix === folder.prefix,
+      ) === index,
+  );
+}
+
+/**
+ * Sort folders chronologically, putting batches before months
+ */
+export function sortFoldersChronologically(folders: FolderStructure[]): FolderStructure[] {
+  return folders.sort((a, b) => {
+    // Put batches before months
+    if (a.type === 'back' && b.type === 'current') return -1;
+    if (a.type === 'current' && b.type === 'back') return 1;
+
+    // For batches, sort by batch number
+    if (a.type === 'back' && b.type === 'back') {
+      const aNum = parseInt(a.batch.replace(/\D/g, ''));
+      const bNum = parseInt(b.batch.replace(/\D/g, ''));
+      return aNum - bNum;
+    }
+
+    // For months, sort chronologically (newest first)
+    if (a.type === 'current' && b.type === 'current') {
+      const aDate = new Date(a.batch);
+      const bDate = new Date(b.batch);
+      return aDate.getTime() - bDate.getTime();
+    }
+
+    return 0;
+  });
 }
 
 /**
@@ -123,7 +173,7 @@ export function getContentStructure(options: ContentStructureOptions): ContentSt
  * @param month - Month in various formats
  * @returns Normalized YYYY-MM format or null if invalid
  */
-function normalizeMonthToYYYYMM(month: string): string | null {
+export function normalizeMonthToYYYYMM(month: string): string | null {
   // Already in YYYY-MM format
   if (month.match(/^\d{4}-\d{2}$/)) {
     const [, monthNum] = month.split('-').map(Number);
@@ -134,7 +184,7 @@ function normalizeMonthToYYYYMM(month: string): string | null {
   }
 
   // Month_YYYY format (e.g., "November_2018")
-  const monthYearMatch = month.match(/^([A-Za-z]+)_(\d{4})$/);
+  const monthYearMatch = month.match(/^([A-Za-z]+)(?:[-_])(\d{4})$/);
   if (monthYearMatch) {
     const monthName = monthYearMatch[1];
     const year = monthYearMatch[2];
@@ -170,7 +220,10 @@ function getMonthNumber(monthName: string): number | null {
   ];
 
   const normalizedName = monthName.toLowerCase();
-  const monthIndex = monthNames.indexOf(normalizedName);
+  let monthIndex = monthNames.indexOf(normalizedName);
+  if (monthIndex === -1) {
+    monthIndex = monthNames.map((m) => m.slice(0, 3).toLowerCase()).indexOf(normalizedName);
+  }
 
   return monthIndex !== -1 ? monthIndex + 1 : null;
 }

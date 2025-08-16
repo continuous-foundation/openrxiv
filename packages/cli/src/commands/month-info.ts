@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import { getS3Client } from '../aws/config.js';
-import { getContentStructure } from '../utils/content-structure.js';
+import { getFolderStructure } from 'biorxiv-utils';
 import { getBucketName } from '../aws/bucket-explorer.js';
 
 export const monthInfoCommand = new Command('month-info')
@@ -44,8 +44,8 @@ async function listMonthMetadata(options: {
     process.exit(1);
   }
 
-  // Determine content structure based on options
-  const contentStructure = getContentStructure({ month, batch, server });
+  // Determine folder structure based on options
+  const contentStructure = getFolderStructure({ month, batch, server });
   const prefix = contentStructure.prefix;
 
   const description = month ? `Month: ${month}` : `Batch: ${batch}`;
@@ -125,14 +125,18 @@ function getContentType(key: string): 'meca' | 'pdf' | 'xml' | 'other' {
   return 'other';
 }
 
-function displaySummary(files: FileMetadata[], month: string, server: string = 'biorxiv'): void {
+function displaySummary(
+  files: FileMetadata[],
+  month: string,
+  server: 'biorxiv' | 'medrxiv' = 'biorxiv',
+): void {
   console.log(chalk.blue.bold('📊 Summary Statistics'));
   console.log(chalk.blue('===================='));
   console.log('');
 
   // Show content structure info if available
   try {
-    const contentStructure = getContentStructure({ month, server });
+    const contentStructure = getFolderStructure({ month, server });
     console.log(chalk.cyan('📁 Content Structure:'));
     console.log(
       `   Type: ${chalk.yellow(contentStructure.type === 'current' ? 'Current Content' : 'Back Content')}`,

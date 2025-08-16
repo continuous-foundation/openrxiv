@@ -93,7 +93,7 @@ export function validateMonthFormat(month: string): boolean {
   const yearNum = parseInt(year, 10);
   const monthInt = parseInt(monthNum, 10);
 
-  return yearNum >= 2018 && yearNum <= 2100 && monthInt >= 1 && monthInt <= 12;
+  return yearNum <= 2100 && monthInt >= 1 && monthInt <= 12;
 }
 
 /**
@@ -109,13 +109,6 @@ export function sortMonthsChronologically(months: string[]): string[] {
     }
     return monthA - monthB;
   });
-}
-
-/**
- * Remove duplicate months
- */
-export function removeDuplicateMonths(months: string[]): string[] {
-  return [...new Set(months)];
 }
 
 /**

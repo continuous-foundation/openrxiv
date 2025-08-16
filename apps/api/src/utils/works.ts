@@ -15,9 +15,8 @@ export const createWorkSchema = z.object({
     .datetime({ message: 'Accepted date must be a valid ISO datetime string' })
     .optional(),
   batch: z.string().min(1, 'Batch is required'),
-  server: z.string().default('biorxiv'),
+  server: z.enum(['biorxiv', 'medrxiv']),
   license: z.string().optional(),
-  s3Bucket: z.string().default('biorxiv-src-monthly'),
   s3Key: z.string().min(1, 'S3 key is required'),
   fileSize: z.number().int().positive('File size must be a positive integer'),
   title: z.string().optional(),

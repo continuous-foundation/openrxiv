@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getContentStructure, normalizeBatch } from './content-structure.js';
+import { getFolderStructure, normalizeBatch } from './folder-structure.js';
 
 describe('Content Structure Utilities', () => {
   describe('normalizeBatch', () => {
@@ -178,7 +178,7 @@ describe('Content Structure Utilities', () => {
     });
   });
 
-  describe('getContentStructure', () => {
+  describe('getFolderStructure', () => {
     describe('with batch option', () => {
       describe('bioRxiv server', () => {
         it.each([
@@ -193,7 +193,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should create Back_Content structure for batch "%s" on bioRxiv',
           (batch, expectedPrefix) => {
-            const result = getContentStructure({ batch, server: 'biorxiv' });
+            const result = getFolderStructure({ batch, server: 'biorxiv' });
 
             expect(result.type).toBe('back');
             expect(result.prefix).toBe(expectedPrefix);
@@ -217,7 +217,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should create Back_Content structure for batch "%s" on medRxiv',
           (batch, expectedPrefix) => {
-            const result = getContentStructure({ batch, server: 'medrxiv' });
+            const result = getFolderStructure({ batch, server: 'medrxiv' });
 
             expect(result.type).toBe('back');
             expect(result.prefix).toBe(expectedPrefix);
@@ -234,7 +234,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should create Back_Content structure for batch "%s" with default server',
           (batch, expectedPrefix) => {
-            const result = getContentStructure({ batch });
+            const result = getFolderStructure({ batch });
 
             expect(result.type).toBe('back');
             expect(result.prefix).toBe(expectedPrefix);
@@ -256,10 +256,12 @@ describe('Content Structure Utilities', () => {
           ['January_2019', 'Current_Content/January_2019/', 'January_2019'],
           ['June_2019', 'Current_Content/June_2019/', 'June_2019'],
           ['December_2019', 'Current_Content/December_2019/', 'December_2019'],
+          ['dec-2019', 'Current_Content/December_2019/', 'December_2019'],
+          ['December-2019', 'Current_Content/December_2019/', 'December_2019'],
         ])(
           'should create Current_Content structure for month "%s" on bioRxiv',
           (month, expectedPrefix, batch) => {
-            const result = getContentStructure({ month, server: 'biorxiv' });
+            const result = getFolderStructure({ month, server: 'biorxiv' });
 
             expect(result.type).toBe('current');
             expect(result.prefix).toBe(expectedPrefix);
@@ -282,7 +284,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should create Current_Content structure for month "%s" on medRxiv',
           (month, expectedPrefix, batch) => {
-            const result = getContentStructure({ month, server: 'medrxiv' });
+            const result = getFolderStructure({ month, server: 'medrxiv' });
 
             expect(result.type).toBe('current');
             expect(result.prefix).toBe(expectedPrefix);
@@ -298,7 +300,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should create Current_Content structure for month "%s" with default server',
           (month, expectedPrefix, batch) => {
-            const result = getContentStructure({ month });
+            const result = getFolderStructure({ month });
 
             expect(result.type).toBe('current');
             expect(result.prefix).toBe(expectedPrefix);
@@ -342,7 +344,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should throw error for Back_Content period month "%s" on bioRxiv',
           (month, expectedError) => {
-            expect(() => getContentStructure({ month, server: 'biorxiv' })).toThrow(expectedError);
+            expect(() => getFolderStructure({ month, server: 'biorxiv' })).toThrow(expectedError);
           },
         );
       });
@@ -364,7 +366,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should throw error for Back_Content period month "%s" on medRxiv',
           (month, expectedError) => {
-            expect(() => getContentStructure({ month, server: 'medrxiv' })).toThrow(expectedError);
+            expect(() => getFolderStructure({ month, server: 'medrxiv' })).toThrow(expectedError);
           },
         );
       });
@@ -378,7 +380,7 @@ describe('Content Structure Utilities', () => {
         ])(
           'should throw error for Back_Content period month "%s" with default server',
           (month, expectedError) => {
-            expect(() => getContentStructure({ month })).toThrow(expectedError);
+            expect(() => getFolderStructure({ month })).toThrow(expectedError);
           },
         );
       });
@@ -406,14 +408,14 @@ describe('Content Structure Utilities', () => {
           'Invalid month format: InvalidMonth_2024. Expected YYYY-MM or Month_YYYY format.',
         ],
       ])('should throw error for invalid input %o', (input, expectedError) => {
-        expect(() => getContentStructure(input)).toThrow(expectedError);
+        expect(() => getFolderStructure(input)).toThrow(expectedError);
       });
     });
 
     describe('edge cases', () => {
       describe('bioRxiv server', () => {
         it('should handle December 2018 as Current Content (cutoff date)', () => {
-          const result = getContentStructure({ month: '2018-12', server: 'biorxiv' });
+          const result = getFolderStructure({ month: '2018-12', server: 'biorxiv' });
 
           expect(result.type).toBe('current');
           expect(result.prefix).toBe('Current_Content/December_2018/');
@@ -421,7 +423,7 @@ describe('Content Structure Utilities', () => {
         });
 
         it('should handle January 2019 as Current Content (after cutoff)', () => {
-          const result = getContentStructure({ month: '2019-01', server: 'biorxiv' });
+          const result = getFolderStructure({ month: '2019-01', server: 'biorxiv' });
 
           expect(result.type).toBe('current');
           expect(result.prefix).toBe('Current_Content/January_2019/');
@@ -429,7 +431,7 @@ describe('Content Structure Utilities', () => {
         });
 
         it('should handle November 2018 as Back Content (before cutoff)', () => {
-          expect(() => getContentStructure({ month: '2018-11', server: 'biorxiv' })).toThrow(
+          expect(() => getFolderStructure({ month: '2018-11', server: 'biorxiv' })).toThrow(
             'Date 2018-11 is in the Back_Content period. Please specify a batch using --batch option.',
           );
         });
@@ -437,7 +439,7 @@ describe('Content Structure Utilities', () => {
 
       describe('medRxiv server', () => {
         it('should handle December 2018 as Current Content (cutoff date)', () => {
-          const result = getContentStructure({ month: '2018-12', server: 'medrxiv' });
+          const result = getFolderStructure({ month: '2018-12', server: 'medrxiv' });
 
           expect(result.type).toBe('current');
           expect(result.prefix).toBe('Current_Content/December_2018/');
@@ -445,7 +447,7 @@ describe('Content Structure Utilities', () => {
         });
 
         it('should handle January 2019 as Current Content (after cutoff)', () => {
-          const result = getContentStructure({ month: '2019-01', server: 'medrxiv' });
+          const result = getFolderStructure({ month: '2019-01', server: 'medrxiv' });
 
           expect(result.type).toBe('current');
           expect(result.prefix).toBe('Current_Content/January_2019/');
@@ -453,7 +455,7 @@ describe('Content Structure Utilities', () => {
         });
 
         it('should handle November 2018 as Back Content (before cutoff)', () => {
-          expect(() => getContentStructure({ month: '2018-11', server: 'medrxiv' })).toThrow(
+          expect(() => getFolderStructure({ month: '2018-11', server: 'medrxiv' })).toThrow(
             'Date 2018-11 is in the Back_Content period. Please specify a batch using --batch option.',
           );
         });
@@ -461,7 +463,7 @@ describe('Content Structure Utilities', () => {
 
       describe('default server (bioRxiv)', () => {
         it('should handle December 2018 as Current Content (cutoff date)', () => {
-          const result = getContentStructure({ month: '2018-12' });
+          const result = getFolderStructure({ month: '2018-12' });
 
           expect(result.type).toBe('current');
           expect(result.prefix).toBe('Current_Content/December_2018/');
@@ -469,7 +471,7 @@ describe('Content Structure Utilities', () => {
         });
 
         it('should handle January 2019 as Current Content (after cutoff)', () => {
-          const result = getContentStructure({ month: '2019-01' });
+          const result = getFolderStructure({ month: '2019-01' });
 
           expect(result.type).toBe('current');
           expect(result.prefix).toBe('Current_Content/January_2019/');
@@ -477,7 +479,7 @@ describe('Content Structure Utilities', () => {
         });
 
         it('should handle November 2018 as Back Content (before cutoff)', () => {
-          expect(() => getContentStructure({ month: '2018-11' })).toThrow(
+          expect(() => getFolderStructure({ month: '2018-11' })).toThrow(
             'Date 2018-11 is in the Back_Content period. Please specify a batch using --batch option.',
           );
         });
@@ -486,19 +488,19 @@ describe('Content Structure Utilities', () => {
 
     describe('server validation', () => {
       it('should not allow both month and batch to be specified', () => {
-        expect(() => getContentStructure({ month: '2024-01', batch: '1' })).toThrow(
+        expect(() => getFolderStructure({ month: '2024-01', batch: '1' })).toThrow(
           'Either month or batch must be specified, not both',
         );
         expect(() =>
-          getContentStructure({ month: '2024-01', batch: '1', server: 'medrxiv' }),
+          getFolderStructure({ month: '2024-01', batch: '1', server: 'medrxiv' }),
         ).toThrow('Either month or batch must be specified, not both');
       });
 
       it('should require either month or batch', () => {
-        expect(() => getContentStructure({ server: 'biorxiv' })).toThrow(
+        expect(() => getFolderStructure({ server: 'biorxiv' })).toThrow(
           'Either month or batch must be specified',
         );
-        expect(() => getContentStructure({ server: 'medrxiv' })).toThrow(
+        expect(() => getFolderStructure({ server: 'medrxiv' })).toThrow(
           'Either month or batch must be specified',
         );
       });

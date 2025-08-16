@@ -1,6 +1,6 @@
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getS3Client } from './config.js';
-import { getContentStructure } from '../utils/content-structure.js';
+import { getFolderStructure } from 'biorxiv-utils';
 
 export interface S3FileInfo {
   s3Bucket: string;
@@ -13,6 +13,7 @@ export interface S3FileInfo {
 export interface ListMonthOptions {
   month?: string; // Format: "YYYY-MM" (e.g., "2025-01")
   batch?: string; // Format: "Batch_01" for Back_Content
+  server?: 'biorxiv' | 'medrxiv'; // Server type (default: 'biorxiv')
   limit?: number; // Max number of files to return
   awsBucket: string;
   awsRegion?: string;
@@ -34,15 +35,15 @@ export async function listMonthFiles(options: ListMonthOptions): Promise<S3FileI
   try {
     const s3Client = await getS3Client();
 
-    // Determine content structure based on options
-    const contentStructure = getContentStructure({ month, batch });
-    const s3Prefix = contentStructure.prefix;
+    // Determine folder structure based on options
+    const folder = getFolderStructure({ month, batch, server: options.server || 'biorxiv' });
+    const s3Prefix = folder.prefix;
 
     console.log(
-      `🔍 Content Type: ${contentStructure.type === 'current' ? 'Current Content' : 'Back Content'}`,
+      `🔍 Content Type: ${folder.type === 'current' ? 'Current Content' : 'Back Content'}`,
     );
-    if (contentStructure.batch) {
-      console.log(`🔍 Batch: ${contentStructure.batch}`);
+    if (folder.batch) {
+      console.log(`🔍 Batch: ${folder.batch}`);
     }
     console.log(`🔍 Searching S3 prefix: ${s3Prefix}`);
 
@@ -82,7 +83,7 @@ export async function listMonthFiles(options: ListMonthOptions): Promise<S3FileI
             s3Key: s3Key, // This is already the full path from S3
             fileSize: fileSize,
             lastModified: lastModified,
-            batch: contentStructure.batch,
+            batch: folder.batch,
           };
 
           allFiles.push(fileInfo);

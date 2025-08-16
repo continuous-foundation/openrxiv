@@ -39,6 +39,7 @@ describe('Work Endpoints - Direct Function Testing', () => {
       version: 1,
       receivedDate: '2024-01-15T00:00:00.000Z',
       batch: 'test-batch',
+      server: 'biorxiv',
       s3Key: 'test-key',
       fileSize: 1024,
     };
@@ -156,6 +157,7 @@ describe('Work Endpoints - Direct Function Testing', () => {
         version: 1,
         receivedDate: '2024-01-15T00:00:00.000Z',
         batch: 'test-batch',
+        server: 'biorxiv',
         s3Key: 'test-s3-key-123',
         fileSize: 1024,
       };
@@ -164,6 +166,7 @@ describe('Work Endpoints - Direct Function Testing', () => {
         doi: '10.1101/2024.01.15.222222',
         version: 1,
         receivedDate: '2024-01-15T00:00:00.000Z',
+        server: 'biorxiv',
         batch: 'test-batch',
         s3Key: 'test-s3-key-123',
         fileSize: 1024,

@@ -5,11 +5,15 @@ import {
   parseWildcardPattern,
   validateMonthFormat,
   sortMonthsChronologically,
-  removeDuplicateMonths,
   getCurrentMonth,
   getPreviousMonth,
   isFutureMonth,
 } from './months.js';
+import {
+  getFolderStructure,
+  removeDuplicateFolders,
+  sortFoldersChronologically,
+} from 'biorxiv-utils';
 
 describe('Month Utilities', () => {
   beforeEach(() => {
@@ -138,7 +142,6 @@ describe('Month Utilities', () => {
     });
 
     it('should reject months outside valid year range', () => {
-      expect(validateMonthFormat('2017-12')).toBe(false); // Before 2018
       expect(validateMonthFormat('2101-01')).toBe(false); // After 2100
     });
 
@@ -177,36 +180,6 @@ describe('Month Utilities', () => {
       const sorted = sortMonthsChronologically(months);
 
       expect(sorted).toEqual([]);
-    });
-  });
-
-  describe('removeDuplicateMonths', () => {
-    it('should remove duplicate months', () => {
-      const months = ['2025-01', '2024-12', '2025-01', '2024-12', '2024-11'];
-      const unique = removeDuplicateMonths(months);
-
-      expect(unique).toEqual(['2025-01', '2024-12', '2024-11']);
-    });
-
-    it('should preserve order of first occurrence', () => {
-      const months = ['2025-01', '2024-12', '2025-01', '2024-12'];
-      const unique = removeDuplicateMonths(months);
-
-      expect(unique).toEqual(['2025-01', '2024-12']);
-    });
-
-    it('should handle array with no duplicates', () => {
-      const months = ['2025-01', '2024-12', '2024-11'];
-      const unique = removeDuplicateMonths(months);
-
-      expect(unique).toEqual(['2025-01', '2024-12', '2024-11']);
-    });
-
-    it('should handle empty array', () => {
-      const months: string[] = [];
-      const unique = removeDuplicateMonths(months);
-
-      expect(unique).toEqual([]);
     });
   });
 
@@ -264,12 +237,16 @@ describe('Month Utilities', () => {
       expect(valid).toEqual(['2025-01', '2024-12', '2025-01', '2024-11', '2024-12']);
 
       // Remove duplicates
-      const unique = removeDuplicateMonths(valid);
-      expect(unique).toEqual(['2025-01', '2024-12', '2024-11']);
+      const folders = valid.map((month) => getFolderStructure({ month }));
+      const unique = removeDuplicateFolders(folders);
+      expect(unique.length).toEqual(3);
 
       // Sort chronologically
-      const sorted = sortMonthsChronologically(unique);
-      expect(sorted).toEqual(['2024-11', '2024-12', '2025-01']);
+      const sorted = sortFoldersChronologically(unique);
+      expect(sorted.length).toEqual(3);
+      expect(sorted[0].batch).toEqual('November_2024');
+      expect(sorted[1].batch).toEqual('December_2024');
+      expect(sorted[2].batch).toEqual('January_2025');
     });
 
     it('should handle wildcard with validation and sorting', () => {

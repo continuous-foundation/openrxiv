@@ -9,10 +9,10 @@ export function formatWorkDTO(baseURL: string, work: Work, parsedDOI: DOIParts):
 
   const links: Record<string, string> = {
     self: `${baseURL}/v1/works/${baseDOI}${versionSuffix}`,
-    biorxiv: `https://www.biorxiv.org/content/${baseDOI}${versionSuffix}`,
-    api: `https://api.biorxiv.org/details/biorxiv/${baseDOI}/na/json`,
-    pdf: `https://www.biorxiv.org/content/${baseDOI}${versionSuffix}.full.pdf`,
-    html: `https://www.biorxiv.org/content/${baseDOI}${versionSuffix}.full`,
+    html: `https://www.${work.server}.org/content/${baseDOI}${versionSuffix}.full`,
+    abstract: `https://www.${work.server}.org/content/${baseDOI}${versionSuffix}`,
+    api: `https://api.${work.server}.org/details/${work.server}/${baseDOI}/na/json`,
+    pdf: `https://www.${work.server}.org/content/${baseDOI}${versionSuffix}.full.pdf`,
   };
 
   // Only add JATS URL if acceptedDate exists and is a valid date
@@ -20,7 +20,7 @@ export function formatWorkDTO(baseURL: string, work: Work, parsedDOI: DOIParts):
     const year = acceptedDate.getUTCFullYear();
     const month = String(acceptedDate.getUTCMonth() + 1).padStart(2, '0');
     const day = String(acceptedDate.getUTCDate()).padStart(2, '0');
-    links.jats = `https://www.biorxiv.org/content/biorxiv/early/${year}/${month}/${day}/${parsedDOI.suffix}.source.xml`;
+    links.jats = `https://www.${work.server}.org/content/${work.server}/early/${year}/${month}/${day}/${parsedDOI.suffix}.source.xml`;
   }
 
   return {

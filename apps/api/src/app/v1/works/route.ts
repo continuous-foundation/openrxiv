@@ -61,6 +61,10 @@ export const POST = withAuth(
         );
       }
 
+      // Auto-set S3 bucket based on server
+      const s3Bucket =
+        workData.server === 'medrxiv' ? 'medrxiv-src-monthly' : 'biorxiv-src-monthly';
+
       // Create the work
       const work = await prisma.work.create({
         data: {
@@ -70,7 +74,7 @@ export const POST = withAuth(
           acceptedDate: workData.acceptedDate ? new Date(workData.acceptedDate) : null,
           batch: workData.batch,
           server: workData.server,
-          s3Bucket: workData.s3Bucket,
+          s3Bucket,
           s3Key: workData.s3Key,
           fileSize: BigInt(workData.fileSize),
           title: workData.title,

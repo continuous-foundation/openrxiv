@@ -151,7 +151,6 @@ describe('API Integration Tests - Direct Function Testing', () => {
         batch: 'test-batch',
         server: 'biorxiv',
         license: 'CC-BY',
-        s3Bucket: 'biorxiv-src-monthly',
         s3Key: 'test/path/work.meca',
         fileSize: 1024,
         title: 'Test Work Title',
@@ -173,7 +172,7 @@ describe('API Integration Tests - Direct Function Testing', () => {
       expect(body.title).toBe(workData.title);
       expect(body.fileSize).toBe(workData.fileSize);
       expect(body.links).toBeDefined();
-      expect(body.links.biorxiv).toContain(workData.doi);
+      expect(body.links.html).toContain(workData.doi);
     });
 
     it('should return 400 for missing required fields', async () => {
@@ -202,6 +201,7 @@ describe('API Integration Tests - Direct Function Testing', () => {
         version: 'v1', // Should be a number
         receivedDate: '2023-01-01T00:00:00.000Z',
         batch: 'test-batch',
+        server: 'biorxiv',
         s3Key: 'test/path/work.meca',
         fileSize: 1024,
       };
@@ -225,6 +225,7 @@ describe('API Integration Tests - Direct Function Testing', () => {
         version: 1,
         receivedDate: '2023-01-01', // Should be ISO datetime
         batch: 'test-batch',
+        server: 'biorxiv',
         s3Key: 'test/path/work.meca',
         fileSize: 1024,
       };
@@ -248,6 +249,7 @@ describe('API Integration Tests - Direct Function Testing', () => {
         version: 2,
         receivedDate: '2023-01-01T00:00:00.000Z',
         batch: 'test-batch',
+        server: 'biorxiv',
         s3Key: 'test/path/duplicate.meca',
         fileSize: 1024,
       };
@@ -279,6 +281,7 @@ describe('API Integration Tests - Direct Function Testing', () => {
         version: 3,
         receivedDate: '2023-01-01T00:00:00.000Z',
         batch: 'test-batch',
+        server: 'biorxiv',
         s3Key: 'test/path/optional.meca',
         fileSize: 1024,
         // No title, acceptedDate - these are optional
@@ -406,9 +409,9 @@ describe('API Integration Tests - Direct Function Testing', () => {
           expect(body).toHaveProperty('doi', sampleWork.doi);
           expect(body).toHaveProperty('version', sampleWork.version);
           expect(body).toHaveProperty('links');
-          expect(body.links).toHaveProperty('biorxiv');
           expect(body.links).toHaveProperty('pdf');
           expect(body.links).toHaveProperty('html');
+          expect(body.links).toHaveProperty('abstract');
 
           // JATS link should only be present if acceptedDate exists
           if (body.acceptedDate) {

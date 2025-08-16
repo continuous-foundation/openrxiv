@@ -24,18 +24,18 @@ interface PaperData {
   acceptedDate?: string;
   batch: string;
   server: string;
-  s3Bucket: string;
+  s3Bucket?: string; // Optional since it will be auto-set by the API
   s3Key: string;
   fileSize: number;
   title?: string;
 }
 
 export interface ProcessMecaOptions {
-  batch?: string;
-  server?: string;
+  batch: string;
+  server: 'biorxiv' | 'medrxiv';
   apiUrl: string;
   output?: string;
-  s3Key?: string; // Add S3 key parameter
+  s3Key: string; // Add S3 key parameter
   apiKey?: string; // Add API key for authentication
   selective?: boolean; // Enable selective extraction (manifest + JATS only)
 }
@@ -102,10 +102,9 @@ export async function processMecaFile(
       acceptedDate: jatsData.acceptedDate
         ? new Date(jatsData.acceptedDate).toISOString()
         : undefined,
-      batch: options.batch || 'batch-import',
-      server: options.server || 'biorxiv',
-      s3Bucket: 'biorxiv-src-monthly',
-      s3Key: options.s3Key || path.basename(mecaPath), // Use S3 key if provided, otherwise fallback to filename
+      batch: options.batch,
+      server: options.server,
+      s3Key: options.s3Key,
       fileSize: fs.statSync(mecaPath).size,
       title: jatsData.title,
     };

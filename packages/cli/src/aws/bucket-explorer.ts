@@ -2,7 +2,7 @@ import { ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import { getS3Client } from './config.js';
-import { getContentStructure } from '../utils/content-structure.js';
+import { getFolderStructure } from 'biorxiv-utils';
 
 /**
  * Get the S3 bucket name based on the server
@@ -49,25 +49,25 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
   try {
     // If no month or batch specified, show the available content structure
     if (!month && !batch) {
-      await listContentStructure(client, server);
+      await listFolder(client, server);
       return;
     }
 
     let prefix = '';
-    let contentStructure = null;
+    let folder = null;
 
     if (month || batch) {
-      // Use content structure utility to determine the correct prefix
-      contentStructure = getContentStructure({ month, batch, server });
-      prefix = contentStructure.prefix;
+      // Use folder structure utility to determine the correct prefix
+      folder = getFolderStructure({ month, batch, server });
+      prefix = folder.prefix;
 
       console.log(
         chalk.gray(
-          `🔍 Content Type: ${contentStructure.type === 'current' ? 'Current Content' : 'Back Content'}`,
+          `🔍 Content Type: ${folder.type === 'current' ? 'Current Content' : 'Back Content'}`,
         ),
       );
-      if (contentStructure.batch) {
-        console.log(chalk.gray(`🔍 Batch: ${contentStructure.batch}`));
+      if (folder.batch) {
+        console.log(chalk.gray(`🔍 Batch: ${folder.batch}`));
       }
     }
 
@@ -115,7 +115,7 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
  * Lists the available content structure in the specified server bucket
  * Shows available months and batches
  */
-async function listContentStructure(
+async function listFolder(
   client: S3Client,
   server: 'biorxiv' | 'medrxiv' = 'biorxiv',
 ): Promise<void> {

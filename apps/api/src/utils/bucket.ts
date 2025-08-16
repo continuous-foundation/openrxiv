@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import type { FolderStructure } from 'biorxiv-utils';
+import { normalizeMonthToYYYYMM, normalizeBatch, getFolderStructure } from 'biorxiv-utils';
 
-// Schema for listing files by month
+// Schema for listing files by folder (month or batch)
 export const listFilesSchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/, {
-    message: 'Month must be in YYYY-MM format (e.g., 2025-01)',
-  }),
+  folder: z.string().min(1, 'Folder parameter is required (month or batch)'),
+  server: z.enum(['biorxiv', 'medrxiv']).default('biorxiv'),
   limit: z
     .string()
     .transform((val) => {
@@ -49,6 +50,28 @@ export function validateGetFileByKeyRequest(query: any): GetFileByKeyRequest {
   return getFileByKeySchema.parse(query);
 }
 
+// Helper function to determine folder type and normalize it
+export function parseFolderParameter(
+  server: 'biorxiv' | 'medrxiv',
+  folder: string,
+): FolderStructure {
+  // First check if it's a month format
+  const normalizedMonth = normalizeMonthToYYYYMM(folder);
+  if (normalizedMonth) {
+    return getFolderStructure({ server, month: normalizedMonth });
+  }
+
+  // If not a month, try to normalize as a batch
+  try {
+    const normalizedBatch = normalizeBatch(folder);
+    return getFolderStructure({ server, batch: normalizedBatch });
+  } catch (error) {
+    throw new Error(
+      `Invalid folder format: ${folder}. Folder must be as a month (YYYY-MM or Month_YYYY) or batch format (Batch_NN or medRxiv_Batch_NN or NN).`,
+    );
+  }
+}
+
 // Helper function to convert YYYY-MM to Month_YYYY format
 export function convertMonthFormat(month: string): string {
   const [year, monthNum] = month.split('-');
@@ -70,15 +93,21 @@ export function convertMonthFormat(month: string): string {
   return `${monthName}_${year}`;
 }
 
+// Helper function to get the batch name for database lookup
+export function getBatchNameForLookup(server: 'biorxiv' | 'medrxiv', folder: string): string {
+  const { batch } = parseFolderParameter(server, folder);
+  return batch;
+}
+
 // Helper function to build pagination links
 export function buildPaginationLinks(
   baseURL: string,
-  month: string,
+  folder: string,
   limit: number,
   offset: number,
   totalCount: number,
 ): Record<string, string> {
-  const currentUrl = `${baseURL}/v1/bucket/list?month=${month}&limit=${limit}&offset=${offset}`;
+  const currentUrl = `${baseURL}/v1/bucket/list?folder=${encodeURIComponent(folder)}&limit=${limit}&offset=${offset}`;
 
   const links: Record<string, string> = {
     self: currentUrl,
@@ -86,7 +115,7 @@ export function buildPaginationLinks(
 
   // Add next page link if there are more files
   if (offset + limit < totalCount) {
-    const nextUrl = `${baseURL}/v1/bucket/list?month=${month}&limit=${limit}&offset=${offset + limit}`;
+    const nextUrl = `${baseURL}/v1/bucket/list?folder=${encodeURIComponent(folder)}&limit=${limit}&offset=${offset + limit}`;
     links.next = nextUrl;
   }
 

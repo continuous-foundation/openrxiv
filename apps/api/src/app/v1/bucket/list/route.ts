@@ -4,7 +4,14 @@ import { PrismaClient } from '@prisma/client';
 import type { Work } from '@prisma/client';
 import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
-import { validateListFilesRequest, convertMonthFormat, buildPaginationLinks } from '@/utils/bucket';
+import {
+  validateListFilesRequest,
+  getBatchNameForLookup,
+  buildPaginationLinks,
+} from '@/utils/bucket';
+import { formatWorkDTO } from '@/dtos/work';
+import type { DOIParts } from 'biorxiv-utils';
+import { parseDOI } from 'biorxiv-utils';
 
 const prisma = new PrismaClient();
 
@@ -13,21 +20,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = Object.fromEntries(searchParams.entries());
 
-    const { month, limit = 100, offset } = validateListFilesRequest(query);
+    const { server, folder, limit = 100, offset } = validateListFilesRequest(query);
 
-    // Convert YYYY-MM to Month_YYYY format
-    const batchName = convertMonthFormat(month);
+    // Get the batch name for database lookup (handles both month and batch formats)
+    const batchName = getBatchNameForLookup(server, folder);
 
     // Get total count for pagination info
     const totalCount = await prisma.work.count({
       where: {
+        server,
         batch: batchName,
       },
     });
 
-    // Find works for the specified month with pagination
+    // Find works for the specified folder with pagination
     const works = (await prisma.work.findMany({
       where: {
+        server,
         batch: batchName,
       },
       take: limit,
@@ -50,25 +59,18 @@ export async function GET(request: NextRequest) {
     })) as Work[];
 
     // Format the response
-    const files = works.map((work) => ({
-      doi: work.doi,
-      version: work.version,
-      title: work.title,
-      receivedDate: work.receivedDate,
-      acceptedDate: work.acceptedDate,
-      batch: work.batch,
-      server: work.server,
-      s3Bucket: work.s3Bucket,
-      s3Key: work.s3Key,
-      fileSize: Number(work.fileSize),
-    }));
+    const items = works.map((work) => {
+      const versionSuffix = `v${work.version}`;
+      const versionDoi = `${work.doi}${versionSuffix}`;
+      return formatWorkDTO(getBaseUrl(request), work, parseDOI(versionDoi) as DOIParts);
+    });
 
     // Build pagination links
-    const links = buildPaginationLinks(getBaseUrl(request), month, limit, offset, totalCount);
+    const links = buildPaginationLinks(getBaseUrl(request), batchName, limit, offset, totalCount);
 
     return NextResponse.json({
-      month,
-      batch: batchName,
+      server,
+      folder: batchName,
       pagination: {
         total: totalCount,
         limit: limit,
@@ -76,7 +78,7 @@ export async function GET(request: NextRequest) {
         hasMore: offset + limit < totalCount,
         nextOffset: offset + limit < totalCount ? offset + limit : null,
       },
-      files,
+      items,
       links,
     });
   } catch (error) {
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
       return handleZodError(error);
     } catch {
       // If handleZodError re-throws, it's not a validation error
-      console.error('Error listing files by month:', error);
+      console.error('Error listing files by folder:', error);
       return createErrorResponse('Internal server error', 500);
     }
   }

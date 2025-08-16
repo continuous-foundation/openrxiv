@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { createWriteStream, existsSync, statSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { dirname, join } from 'path';
@@ -14,6 +14,7 @@ export interface DownloadOptions {
   parallel?: number;
   resume?: boolean;
   filename?: string;
+  bucket?: string; // Add bucket parameter
 }
 
 export interface DownloadProgress {
@@ -24,7 +25,12 @@ export interface DownloadProgress {
 }
 
 export async function downloadFile(path: string, options: DownloadOptions): Promise<void> {
-  const { output = './downloads', parallel = 3, resume = false } = options;
+  const {
+    output = './downloads',
+    parallel = 3,
+    resume = false,
+    bucket = 'biorxiv-src-monthly',
+  } = options;
   const client = await getS3Client();
 
   console.log(chalk.blue(`Downloading: ${path}`));
@@ -33,7 +39,7 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
   try {
     // Get file metadata
     const headCommandOptions: any = {
-      Bucket: 'biorxiv-src-monthly',
+      Bucket: bucket,
       Key: path,
     };
 
@@ -71,7 +77,7 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
     const spinner = ora('Preparing download...').start();
 
     const getCommandOptions: any = {
-      Bucket: 'biorxiv-src-monthly',
+      Bucket: bucket,
       Key: path,
     };
 

@@ -7,16 +7,17 @@ import { listMonthFiles, type S3FileInfo } from '../aws/month-lister.js';
 import { downloadFile } from '../aws/downloader.js';
 import { processMecaFile } from '../utils/meca-processor.js';
 import {
-  generateMonthRange,
-  parseMonthInput,
-  validateMonthFormat,
-  sortMonthsChronologically,
-  removeDuplicateMonths,
-} from '../utils/index.js';
+  getFolderStructure,
+  removeDuplicateFolders,
+  sortFoldersChronologically,
+  type FolderStructure,
+} from 'biorxiv-utils';
+import { generateMonthRange, parseMonthInput, validateMonthFormat } from '../utils/index.js';
 
 interface BatchOptions {
   month?: string;
   batch?: string;
+  server?: 'biorxiv' | 'medrxiv';
   limit?: number;
   apiUrl: string;
   apiKey?: string;
@@ -41,6 +42,7 @@ export const batchProcessCommand = new Command('batch-process')
     '-b, --batch <batch>',
     'Batch to process (e.g., "1", "batch-1", "Batch_01"). Use this for historical content before 2018-12.',
   )
+  .option('-s, --server <server>', 'Server type: biorxiv or medrxiv (default: biorxiv)', 'biorxiv')
   .option(
     '-l, --limit <number>',
     'Maximum number of files to process. If not specified, processes all available files',
@@ -63,7 +65,7 @@ export const batchProcessCommand = new Command('batch-process')
   )
   .option('-c, --concurrency <number>', 'Number of files to process concurrently (default: 1)', '1')
   .option('--max-file-size <size>', 'Skip files larger than this size (e.g., 100MB, 2GB)', '')
-  .option('--aws-bucket <bucket>', 'AWS S3 bucket name', 'biorxiv-src-monthly')
+  .option('--aws-bucket <bucket>', 'AWS S3 bucket name (auto-set based on server if not specified)')
   .option('--aws-region <region>', 'AWS region', 'us-east-1')
   .action(async (options: BatchOptions) => {
     if (!options.apiKey) {
@@ -94,18 +96,36 @@ export const batchProcessCommand = new Command('batch-process')
       );
       console.log(`🔍 Dry run mode: ${options.dryRun ? 'enabled' : 'disabled'}`);
       console.log(`⚡ Concurrency: ${options.concurrency} files`);
+      console.log(`🌐 Server: ${options.server}`);
+
+      if (!options.server) {
+        // Default to biorxiv if no server is specified
+        options.server = 'biorxiv';
+      }
+      if (!['biorxiv', 'medrxiv'].includes(options.server)) {
+        console.error('❌ Invalid server. Please use "biorxiv" or "medrxiv".');
+        process.exit(1);
+      }
+      // Auto-set AWS bucket based on server if not explicitly provided
+      if (!options.awsBucket) {
+        options.awsBucket =
+          options.server === 'medrxiv' ? 'medrxiv-src-monthly' : 'biorxiv-src-monthly';
+        console.log(`🪣 AWS Bucket: ${options.awsBucket} (auto-set based on server)`);
+      } else {
+        console.log(`🪣 AWS Bucket: ${options.awsBucket} (explicitly specified)`);
+      }
 
       // Create output directory
       if (!fs.existsSync(options.output)) {
         fs.mkdirSync(options.output, { recursive: true });
       }
 
-      // Determine which months to process
-      let monthsToProcess: string[];
+      // Determine which folders to process
+      let foldersToProcess: FolderStructure[] = [];
 
       if (options.month) {
         try {
-          monthsToProcess = parseMonthInput(options.month);
+          const monthsToProcess = parseMonthInput(options.month);
 
           // Validate all months
           const invalidMonths = monthsToProcess.filter((m) => !validateMonthFormat(m));
@@ -115,50 +135,66 @@ export const batchProcessCommand = new Command('batch-process')
             process.exit(1);
           }
 
-          // Remove duplicates and sort chronologically
-          monthsToProcess = removeDuplicateMonths(monthsToProcess);
-          monthsToProcess = sortMonthsChronologically(monthsToProcess);
-
-          console.log(`🚀 Starting batch processing for ${monthsToProcess.length} month(s)`);
-          console.log(`📅 Processing months: ${monthsToProcess.join(', ')}`);
+          // Convert months to content structures
+          foldersToProcess = monthsToProcess.map((month) =>
+            getFolderStructure({ month, server: options.server }),
+          );
         } catch (error) {
           console.error(
             `❌ Error parsing month input: ${error instanceof Error ? error.message : String(error)}`,
           );
           process.exit(1);
         }
+      } else if (options.batch) {
+        // Process a single batch
+        const batchStructure = getFolderStructure({
+          batch: options.batch,
+          server: options.server,
+        });
+        foldersToProcess = [batchStructure];
       } else {
-        monthsToProcess = generateMonthRange();
-        console.log(`🚀 Starting backwards batch processing for ${monthsToProcess.length} months`);
-        console.log(`📅 Processing months: ${monthsToProcess.join(', ')}`);
-        console.log(`📅 Range: from current month back to 2018-12`);
+        // Generate month range and convert to content structures
+        const monthRange = generateMonthRange();
+        const monthStructures = monthRange.map((month) =>
+          getFolderStructure({ month, server: options.server }),
+        );
+        foldersToProcess = monthStructures;
       }
 
-      for (const month of monthsToProcess) {
-        console.log(`\n📅 Processing month: ${month}`);
+      // Remove duplicates and sort chronologically for all cases
+      const uniqueFolders = removeDuplicateFolders(foldersToProcess);
+      foldersToProcess = sortFoldersChronologically(uniqueFolders);
 
-        const result = await processMonth(month, options);
+      console.log(`🚀 Starting processing for ${foldersToProcess.length} folders(s)`);
+      console.log(`📅 Processing folders: ${foldersToProcess.map((s) => s.batch).join(', ')}`);
+
+      for (const folder of foldersToProcess) {
+        const displayName =
+          folder.type === 'back' ? `batch ${folder.batch}` : `month ${folder.batch}`;
+        console.log(`\n📅 Processing ${displayName}`);
+
+        const result = await processBatch(folder, options);
 
         if (!result.success) {
-          console.error(`❌ Failed to process month ${month}:`, result.error);
-          // Continue with next month instead of exiting
+          console.error(`❌ Failed to process ${displayName}:`, result.error);
+          // Continue with next folder instead of exiting
           continue;
         }
 
-        // Update totals (these will be populated by processMonth)
-        // For now, we'll just track that the month was processed
-        console.log(`✅ Month ${month} completed successfully`);
+        // Update totals (these will be populated by processBatch)
+        // For now, we'll just track that the folder was processed
+        console.log(`✅ ${displayName} completed successfully`);
       }
 
-      // Final summary across all months
-      if (monthsToProcess.length > 1) {
+      // Final summary across all folders
+      if (foldersToProcess.length > 1) {
         const summaryType = options.month ? 'batch processing' : 'backwards batch processing';
         console.log(`\n🎉 ${summaryType} completed!`);
-        console.log(`📅 Processed ${monthsToProcess.length} months`);
-        console.log(`📊 Total months processed: ${monthsToProcess.length}`);
+        console.log(`📅 Processed ${foldersToProcess.length} folders`);
+        console.log(`📊 Total folders processed: ${foldersToProcess.length}`);
       } else {
-        console.log(`\n🎉 Month processing completed!`);
-        console.log(`📅 Processed month: ${monthsToProcess[0]}`);
+        console.log(`\n🎉 Folder processing completed!`);
+        console.log(`📅 Processed folder: ${foldersToProcess[0].batch}`);
       }
     } catch (error) {
       console.error('❌ Error in batch processing:', error);
@@ -167,24 +203,24 @@ export const batchProcessCommand = new Command('batch-process')
   });
 
 /**
- * Process a single month
+ * Process a single batch or month
  */
-async function processMonth(
-  month: string,
+async function processBatch(
+  folder: FolderStructure,
   options: BatchOptions,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Step 1: List available MECA files for the month
-    const availableFiles = await listAvailableFiles(month, options.limit, options);
+    // Step 1: List available MECA files for the folder
+    const availableFiles = await listAvailableFiles(folder, options.limit, options);
     console.log(`📋 Found ${availableFiles.length} available files`);
 
     if (availableFiles.length === 0) {
-      console.log('❌ No files found for the specified month');
+      console.log('❌ No files found for the specified folder');
       return { success: false, error: 'No files found' };
     }
 
     // Step 2: Check which files are already processed
-    const processingStatus = await checkProcessingStatus(availableFiles, options.apiUrl, month);
+    const processingStatus = await checkProcessingStatus(availableFiles, options.apiUrl, folder);
 
     let filesToProcess = options.force
       ? availableFiles
@@ -255,6 +291,7 @@ async function processMonth(
           // Download the MECA file first
           await downloadFile(file.s3Key, {
             output: options.output,
+            bucket: options.awsBucket,
           });
 
           // Get the local file path
@@ -266,7 +303,7 @@ async function processMonth(
           // Process the MECA file using the utility function
           const result = await processMecaFile(localFilePath, {
             batch: file.batch,
-            server: 'biorxiv',
+            server: folder.server,
             apiUrl: options.apiUrl,
             output: options.output,
             s3Key: file.s3Key, // Pass the full S3 key for database storage
@@ -420,7 +457,7 @@ async function cleanupFiles(
 }
 
 async function listAvailableFiles(
-  month: string,
+  folder: FolderStructure,
   limit: number | undefined,
   options: BatchOptions,
 ): Promise<S3FileInfo[]> {
@@ -428,7 +465,9 @@ async function listAvailableFiles(
   const actualLimit = limit || 999999;
 
   return listMonthFiles({
-    month,
+    month: folder.type === 'current' ? folder.batch : undefined,
+    batch: folder.type === 'back' ? folder.batch : undefined,
+    server: options.server,
     limit: actualLimit,
     awsBucket: options.awsBucket,
     awsRegion: options.awsRegion,
@@ -438,21 +477,15 @@ async function listAvailableFiles(
 async function checkProcessingStatus(
   files: S3FileInfo[],
   apiUrl: string,
-  month: string,
+  folder: FolderStructure,
 ): Promise<Record<string, { exists: boolean; paper?: any }>> {
   const status: Record<string, { exists: boolean; paper?: any }> = {};
   const processedFiles = new Set<string>();
 
   console.log('🔍 Checking processing status using batch endpoint...');
 
-  // Extract month from the first file's S3 key to determine the batch
-  // Format should be something like "2025-01/..." so we extract "2025-01"
-  const monthFromFiles = month || files[0]?.s3Key.split('/')[0];
-
-  if (!monthFromFiles || !/^\d{4}-\d{2}$/.test(monthFromFiles)) {
-    console.warn('⚠️  Could not determine month from files, falling back to individual requests');
-    return checkProcessingStatusIndividual(files, apiUrl);
-  }
+  // Use the folder.batch directly instead of trying to extract month from S3 keys
+  const folderParam = folder.batch;
 
   let offset = 0;
   const limit = 1000; // Use the API's default limit
@@ -461,16 +494,16 @@ async function checkProcessingStatus(
   while (hasMore) {
     try {
       const response = await axios.get(
-        `${apiUrl}/v1/bucket/list?month=${monthFromFiles}&limit=${limit}&offset=${offset}`,
+        `${apiUrl}/v1/bucket/list?folder=${encodeURIComponent(folderParam)}&server=${folder.server}&limit=${limit}&offset=${offset}`,
       );
 
-      const { files: batchFiles, pagination } = response.data;
+      const { items: batchItems, pagination } = response.data;
 
       // Mark all files in this batch as processed
-      for (const file of batchFiles) {
-        if (file.s3Key) {
-          processedFiles.add(file.s3Key);
-          status[file.s3Key] = { exists: true, paper: file };
+      for (const item of batchItems) {
+        if (item.s3Key) {
+          processedFiles.add(item.s3Key);
+          status[item.s3Key] = { exists: true, paper: item };
         }
       }
 
@@ -479,7 +512,7 @@ async function checkProcessingStatus(
       offset = pagination.nextOffset || offset + limit;
 
       console.log(
-        `  📄 Processed batch page: ${batchFiles.length} files (offset: ${pagination.offset})`,
+        `  📄 Processed batch page: ${batchItems.length} items (offset: ${pagination.offset})`,
       );
     } catch (error) {
       console.warn(`⚠️  Error fetching batch at offset ${offset}:`, error);
@@ -498,37 +531,12 @@ async function checkProcessingStatus(
     }
   }
 
-  console.log(`  ✅ Found ${processedFiles.size} processed files in batch`);
+  console.log(`  ✅ Found ${processedFiles.size} processed items in batch`);
   console.log(
     `  📊 Requested files status: ${Object.values(finalStatus).filter((s) => s.exists).length}/${files.length} already processed`,
   );
 
   return finalStatus;
-}
-
-async function checkProcessingStatusIndividual(
-  files: S3FileInfo[],
-  apiUrl: string,
-): Promise<Record<string, { exists: boolean; paper?: any }>> {
-  const status: Record<string, { exists: boolean; paper?: any }> = {};
-
-  console.log('  🔍 Falling back to individual file checks...');
-
-  for (const file of files) {
-    try {
-      const response = await axios.get(`${apiUrl}/v1/bucket?key=${encodeURIComponent(file.s3Key)}`);
-      status[file.s3Key] = { exists: true, paper: response.data };
-    } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 404) {
-        status[file.s3Key] = { exists: false };
-      } else {
-        console.warn(`⚠️  Could not check status for ${file.s3Key}`);
-        status[file.s3Key] = { exists: false };
-      }
-    }
-  }
-
-  return status;
 }
 
 function parseFileSize(sizeStr: string): number | null {
