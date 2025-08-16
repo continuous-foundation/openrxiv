@@ -6,6 +6,13 @@ import pLimit from 'p-limit';
 import { listMonthFiles, type S3FileInfo } from '../aws/month-lister.js';
 import { downloadFile } from '../aws/downloader.js';
 import { processMecaFile } from '../utils/meca-processor.js';
+import {
+  generateMonthRange,
+  parseMonthInput,
+  validateMonthFormat,
+  sortMonthsChronologically,
+  removeDuplicateMonths,
+} from '../utils/index.js';
 
 interface BatchOptions {
   month: string;
@@ -29,7 +36,7 @@ export const batchProcessCommand = new Command('batch-process')
   )
   .option(
     '-m, --month <month>',
-    'Month to process (YYYY-MM format). If not specified, processes backwards from current month to 2020',
+    'Month(s) to process. Supports: YYYY-MM, comma-separated list (2025-01,2025-02), or wildcard pattern (2025-*). If not specified, processes backwards from current month to 2018-12',
   )
   .option(
     '-l, --limit <number>',
@@ -84,13 +91,37 @@ export const batchProcessCommand = new Command('batch-process')
       }
 
       // Determine which months to process
-      const monthsToProcess = options.month ? [options.month] : generateMonthRange();
+      let monthsToProcess: string[];
 
-      if (monthsToProcess.length > 1) {
+      if (options.month) {
+        try {
+          monthsToProcess = parseMonthInput(options.month);
+
+          // Validate all months
+          const invalidMonths = monthsToProcess.filter((m) => !validateMonthFormat(m));
+          if (invalidMonths.length > 0) {
+            console.error(`❌ Invalid month format(s): ${invalidMonths.join(', ')}`);
+            console.error('Expected format: YYYY-MM (e.g., 2025-01)');
+            process.exit(1);
+          }
+
+          // Remove duplicates and sort chronologically
+          monthsToProcess = removeDuplicateMonths(monthsToProcess);
+          monthsToProcess = sortMonthsChronologically(monthsToProcess);
+
+          console.log(`🚀 Starting batch processing for ${monthsToProcess.length} month(s)`);
+          console.log(`📅 Processing months: ${monthsToProcess.join(', ')}`);
+        } catch (error) {
+          console.error(
+            `❌ Error parsing month input: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          process.exit(1);
+        }
+      } else {
+        monthsToProcess = generateMonthRange();
         console.log(`🚀 Starting backwards batch processing for ${monthsToProcess.length} months`);
         console.log(`📅 Processing months: ${monthsToProcess.join(', ')}`);
-      } else {
-        console.log(`🚀 Starting batch processing for month: ${options.month}`);
+        console.log(`📅 Range: from current month back to 2018-12`);
       }
 
       for (const month of monthsToProcess) {
@@ -111,36 +142,19 @@ export const batchProcessCommand = new Command('batch-process')
 
       // Final summary across all months
       if (monthsToProcess.length > 1) {
-        console.log(`\n🎉 Backwards batch processing completed!`);
+        const summaryType = options.month ? 'batch processing' : 'backwards batch processing';
+        console.log(`\n🎉 ${summaryType} completed!`);
         console.log(`📅 Processed ${monthsToProcess.length} months`);
         console.log(`📊 Total months processed: ${monthsToProcess.length}`);
+      } else {
+        console.log(`\n🎉 Month processing completed!`);
+        console.log(`📅 Processed month: ${monthsToProcess[0]}`);
       }
     } catch (error) {
       console.error('❌ Error in batch processing:', error);
       process.exit(1);
     }
   });
-
-/**
- * Generate a range of months to process backwards from current month to 2019
- */
-function generateMonthRange(): string[] {
-  const months: string[] = [];
-  const now = new Date();
-  const currentDate = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  // Go back from current month to January 2020
-  while (currentDate.getFullYear() >= 2020) {
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    months.push(`${year}-${month}`);
-
-    // Move to previous month
-    currentDate.setMonth(currentDate.getMonth() - 1);
-  }
-
-  return months;
-}
 
 /**
  * Process a single month
