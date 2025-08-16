@@ -263,29 +263,5 @@ describe('Work Endpoints - Direct Function Testing', () => {
       expect(body.message).toBe('DOI search endpoint is not yet implemented');
       expect(body.availableEndpoints).toBeDefined();
     });
-
-    it('should validate DOI format when provided', async () => {
-      const request = createMockRequest('http://localhost:3000/v1/works', {
-        searchParams: { doi: 'invalid-doi-format' },
-      });
-
-      const response = await worksGet(request);
-
-      expect(response.status).toBe(400);
-      const body = await response.json();
-      expect(body.error).toBe('Invalid DOI format');
-      expect(body.expectedFormat).toBe('10.1101/YYYY.MM.DD.identifier');
-    });
-
-    it('should handle empty DOI parameter', async () => {
-      const request = createMockRequest('http://localhost:3000/v1/works');
-
-      const response = await worksGet(request);
-
-      expect(response.status).toBe(501);
-      const body = await response.json();
-      expect(body.error).toBe('Search not implemented');
-      expect(body.message).toBe('DOI search endpoint is not yet implemented');
-    });
   });
 });

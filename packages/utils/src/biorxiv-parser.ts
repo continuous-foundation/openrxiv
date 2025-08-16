@@ -14,7 +14,7 @@ export interface DOIParts {
   doi: string;
   prefix: string;
   suffix: string;
-  date: string;
+  date: string | null;
   identifier: string;
   version: string | null;
 }
@@ -55,39 +55,60 @@ export function extractDOIFromURL(url: string): string | null {
 
 /**
  * Parse a bioRxiv DOI into its components
+ * Supports both legacy numeric format (2019 and earlier) and current date-based format (2019+)
  */
 export function parseDOI(doi: string): DOIParts | null {
-  // bioRxiv DOI format: 10.1101/YYYY.MM.DD.XXXXXXvN
-  const pattern = /^10\.1101\/(\d{4})\.(\d{2})\.(\d{2})\.(\d{6})(v\d+)?$/;
-  const match = doi.match(pattern);
+  // Handle current date-based format (2019+): 10.1101/YYYY.MM.DD.XXXXXXvN
+  const currentPattern = /^10\.1101\/(\d{4})\.(\d{2})\.(\d{2})\.(\d{6})(v\d+)?$/;
+  const currentMatch = doi.match(currentPattern);
 
-  if (!match) {
-    return null;
+  if (currentMatch) {
+    const [prefix, suffix] = doi.split('/');
+    const [, year, month, day, identifier, version] = currentMatch;
+    const date = `${year}-${month}-${day}`;
+
+    return {
+      doi,
+      prefix,
+      suffix: suffix.replace(/(v\d+)$/, ''),
+      date,
+      identifier,
+      version: version || null,
+    };
   }
-  const [prefix, suffix] = doi.split('/');
 
-  const [, year, month, day, identifier, version] = match;
-  const date = `${year}-${month}-${day}`;
+  // Handle legacy numeric format (2019 and earlier): 10.1101/XXXXXX
+  const legacyPattern = /^10\.1101\/(\d{6})(v\d+)?$/;
+  const legacyMatch = doi.match(legacyPattern);
 
-  return {
-    doi,
-    prefix,
-    suffix: suffix.replace(/(v\d+)$/, ''),
-    date,
-    identifier,
-    version: version || null,
-  };
+  if (legacyMatch) {
+    const [prefix, suffix] = doi.split('/');
+    const [, identifier, version] = legacyMatch;
+    return {
+      doi,
+      prefix,
+      suffix: suffix.replace(/(v\d+)$/, ''),
+      date: null,
+      identifier,
+      version: version || null,
+    };
+  }
+
+  return null;
 }
 
 /**
  * Extract base DOI (without version)
+ * Works with both legacy numeric and current date-based formats
  */
 export function extractBaseDOI(doi: string): string {
+  // Remove version suffix if present
   return doi.replace(/v\d+$/, '');
 }
 
 /**
  * Extract version from DOI
+ * Works with both legacy numeric and current date-based formats
  */
 export function extractVersion(doi: string): string | null {
   const match = doi.match(/v(\d+)$/);
@@ -96,6 +117,7 @@ export function extractVersion(doi: string): string | null {
 
 /**
  * Check if a DOI is a valid bioRxiv DOI
+ * Supports both legacy numeric and current date-based formats
  */
 export function isValidBiorxivDOI(doi: string): boolean {
   return parseDOI(doi) !== null;
@@ -129,58 +151,4 @@ export function parseBiorxivURL(url: string): ParsedBiorxivURL | null {
     fullURL: url,
     isValid: true,
   };
-}
-
-/**
- * Format a DOI for display
- */
-export function formatDOI(doi: string): string {
-  const parts = parseDOI(doi);
-  if (!parts) return doi;
-
-  if (parts.version) {
-    return `${parts.prefix}/${parts.date}.${parts.identifier} (${parts.version})`;
-  }
-
-  return `${parts.prefix}/${parts.date}.${parts.identifier}`;
-}
-
-/**
- * Get a human-readable date from a bioRxiv DOI
- */
-export function getDateFromDOI(doi: string): Date | null {
-  const parts = parseDOI(doi);
-  if (!parts) return null;
-
-  const [year, month, day] = parts.date.split('-');
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-}
-
-/**
- * Check if a DOI is from a specific time period
- */
-export function isDOIInPeriod(doi: string, startDate: Date, endDate: Date): boolean {
-  const doiDate = getDateFromDOI(doi);
-  if (!doiDate) return false;
-
-  return doiDate >= startDate && doiDate <= endDate;
-}
-
-/**
- * Get the expected S3 path for a bioRxiv DOI
- */
-export function getExpectedS3Path(doi: string): string | null {
-  const doiDate = getDateFromDOI(doi);
-  if (!doiDate) return null;
-
-  const month = doiDate.toLocaleString('en-US', { month: 'long' });
-  const year = doiDate.getFullYear();
-
-  // Current content (after 2019)
-  if (doiDate >= new Date('2019-01-01')) {
-    return `Current_Content/${month}_${year}/`;
-  }
-
-  // Back content (before 2019)
-  return `Back_Content/Batch_01/`;
 }

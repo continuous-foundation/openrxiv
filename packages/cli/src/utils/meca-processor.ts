@@ -86,7 +86,9 @@ export async function processMecaFile(
     let jatsData;
     try {
       jatsData = await parseJATS(jatsFile);
-      console.log(`🔍 JATS parsed - DOI: ${jatsData.doi}, Version: ${jatsData.version}`);
+      console.log(
+        `🔍 JATS parsed - DOI: ${jatsData.doi}, Version: ${jatsData.version}, Received Date: ${jatsData.receivedDate}`,
+      );
     } catch (jatsError) {
       console.error('❌ Error parsing JATS:', jatsError);
       throw jatsError;

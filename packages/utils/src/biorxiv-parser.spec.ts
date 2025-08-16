@@ -7,75 +7,51 @@ import {
   isValidBiorxivDOI,
   isValidBiorxivURL,
   parseBiorxivURL,
-  formatDOI,
-  getDateFromDOI,
-  getExpectedS3Path,
-  isDOIInPeriod,
 } from './biorxiv-parser.js';
 
 describe('BioRxiv URL Parser', () => {
   describe('extractDOIFromURL', () => {
-    it('should extract DOI from standard content URL', () => {
-      const url = 'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3';
+    it.each([
+      [
+        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3',
+        '10.1101/2024.01.25.577295v3',
+      ],
+      [
+        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.article-info',
+        '10.1101/2024.01.25.577295v3',
+      ],
+      [
+        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.full',
+        '10.1101/2024.01.25.577295v3',
+      ],
+      [
+        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.abstract',
+        '10.1101/2024.01.25.577295v3',
+      ],
+      [
+        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.pdf',
+        '10.1101/2024.01.25.577295v3',
+      ],
+      [
+        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.suppl',
+        '10.1101/2024.01.25.577295v3',
+      ],
+      ['https://doi.org/10.1101/2024.01.25.577295v3', '10.1101/2024.01.25.577295v3'],
+      ['10.1101/2024.01.25.577295v3', '10.1101/2024.01.25.577295v3'],
+    ])('should extract DOI from standard content URL', (url, expected) => {
       const result = extractDOIFromURL(url);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
+      expect(result).toBe(expected);
     });
 
-    it('should extract DOI from article-info URL', () => {
-      const url = 'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.article-info';
+    it.each([
+      ['https://example.com/not-biorxiv', null],
+      ['https://biorxiv.org/invalid-path', null],
+      ['not-a-url', null],
+      ['', null],
+      ['https://biorxiv.org/', null],
+    ])('should return null for invalid URLs', (url, expected) => {
       const result = extractDOIFromURL(url);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
-    });
-
-    it('should extract DOI from full text URL', () => {
-      const url = 'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.full';
-      const result = extractDOIFromURL(url);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
-    });
-
-    it('should extract DOI from abstract URL', () => {
-      const url = 'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.abstract';
-      const result = extractDOIFromURL(url);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
-    });
-
-    it('should extract DOI from PDF URL', () => {
-      const url = 'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.pdf';
-      const result = extractDOIFromURL(url);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
-    });
-
-    it('should extract DOI from supplementary URL', () => {
-      const url = 'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.suppl';
-      const result = extractDOIFromURL(url);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
-    });
-
-    it('should extract DOI from doi.org redirect', () => {
-      const url = 'https://doi.org/10.1101/2024.01.25.577295v3';
-      const result = extractDOIFromURL(url);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
-    });
-
-    it('should handle direct DOI input', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
-      const result = extractDOIFromURL(doi);
-      expect(result).toBe('10.1101/2024.01.25.577295v3');
-    });
-
-    it('should return null for invalid URLs', () => {
-      const invalidUrls = [
-        'https://example.com/not-biorxiv',
-        'https://biorxiv.org/invalid-path',
-        'not-a-url',
-        '',
-        'https://biorxiv.org/',
-      ];
-
-      invalidUrls.forEach((url) => {
-        const result = extractDOIFromURL(url);
-        expect(result).toBeNull();
-      });
+      expect(result).toBe(expected);
     });
   });
 
@@ -142,100 +118,68 @@ describe('BioRxiv URL Parser', () => {
   });
 
   describe('extractBaseDOI', () => {
-    it('should extract base DOI from versioned DOI', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
+    it.each([
+      ['10.1101/2024.01.25.577295', '10.1101/2024.01.25.577295'], // Same DOI
+      ['10.1101/2024.01.25.577295v3', '10.1101/2024.01.25.577295'], // Remove version
+      ['10.1101/2024.01.25.577295v12', '10.1101/2024.01.25.577295'], // Remove double digit version
+    ])('should extract base DOI from versioned DOI', (doi, expected) => {
       const result = extractBaseDOI(doi);
-      expect(result).toBe('10.1101/2024.01.25.577295');
-    });
-
-    it('should return same DOI if no version', () => {
-      const doi = '10.1101/2024.01.25.577295';
-      const result = extractBaseDOI(doi);
-      expect(result).toBe('10.1101/2024.01.25.577295');
-    });
-
-    it('should handle multiple version digits', () => {
-      const doi = '10.1101/2024.01.25.577295v12';
-      const result = extractBaseDOI(doi);
-      expect(result).toBe('10.1101/2024.01.25.577295');
+      expect(result).toBe(expected);
     });
   });
 
   describe('extractVersion', () => {
-    it('should extract version from DOI', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
+    it.each([
+      ['10.1101/2024.01.25.577295v3', '3'],
+      ['10.1101/2024.01.25.577295', null],
+      ['10.1101/2024.01.25.577295v12', '12'],
+    ])('should extract version from DOI', (doi, expected) => {
       const result = extractVersion(doi);
-      expect(result).toBe('3');
-    });
-
-    it('should return null for DOI without version', () => {
-      const doi = '10.1101/2024.01.25.577295';
-      const result = extractVersion(doi);
-      expect(result).toBeNull();
-    });
-
-    it('should handle double digit versions', () => {
-      const doi = '10.1101/2024.01.25.577295v12';
-      const result = extractVersion(doi);
-      expect(result).toBe('12');
+      expect(result).toBe(expected);
     });
   });
 
   describe('isValidBiorxivDOI', () => {
-    it('should validate correct bioRxiv DOIs', () => {
-      const validDOIs = [
-        '10.1101/2024.01.25.577295v3',
-        '10.1101/2024.01.25.577295',
-        '10.1101/2020.01.15.123456v2',
-        '10.1101/2018.01.15.789012',
-      ];
-
-      validDOIs.forEach((doi) => {
-        expect(isValidBiorxivDOI(doi)).toBe(true);
-      });
-    });
-
-    it('should reject invalid DOIs', () => {
-      const invalidDOIs = [
-        '10.1000/123.456.789',
-        '10.1101/2024.1.25.577295',
-        '10.1101/2024.01.25.57729',
-        'invalid-doi',
-        '',
-      ];
-
-      invalidDOIs.forEach((doi) => {
-        expect(isValidBiorxivDOI(doi)).toBe(false);
-      });
+    it.each([
+      // Valid DOIs
+      ['10.1101/2024.01.25.577295v3', true],
+      ['10.1101/2024.01.25.577295', true],
+      ['10.1101/2020.01.15.123456v2', true],
+      ['10.1101/2018.01.15.789012', true],
+      ['10.1101/789012', true],
+      ['10.1101/789012v12', true],
+      ['10.1101/789012v3', true],
+      // Invalid DOIs
+      ['10.1000/123.456.789', false],
+      ['10.1101/2024.1.25.577295', false],
+      ['10.1101/2024.01.25.57729', false],
+      ['invalid-doi', false],
+      ['10.1101/78901', false],
+      ['10.1101/78901v3', false],
+      ['', false],
+    ])('should validate correct bioRxiv DOIs', (doi, expected) => {
+      const result = isValidBiorxivDOI(doi);
+      expect(result).toBe(expected);
     });
   });
 
   describe('isValidBiorxivURL', () => {
-    it('should validate correct bioRxiv URLs', () => {
-      const validURLs = [
-        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3',
-        'https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.article-info',
-        'https://doi.org/10.1101/2024.01.25.577295v3',
-        '10.1101/2024.01.25.577295v3',
-      ];
-
-      validURLs.forEach((url) => {
-        expect(isValidBiorxivURL(url)).toBe(true);
-      });
-    });
-
-    it('should reject invalid URLs', () => {
-      const invalidURLs = [
-        'https://example.com/not-biorxiv',
-        'https://biorxiv.org/invalid-path',
-        '10.1000/123.456.789',
-        'invalid-url',
-        '',
-      ];
-
-      invalidURLs.forEach((url) => {
-        expect(isValidBiorxivURL(url)).toBe(false);
-      });
+    it.each([
+      ['https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3', true],
+      ['https://www.biorxiv.org/content/10.1101/2024.01.25.577295v3.article-info', true],
+      ['https://doi.org/10.1101/2024.01.25.577295v3', true],
+      ['10.1101/2024.01.25.577295v3', true],
+      ['https://www.biorxiv.org/content/10.1101/486050v2.article-info', true],
+      ['https://www.biorxiv.org/content/10.1101/486050', true],
+      // Invalid
+      ['https://example.com/not-biorxiv', false],
+      ['https://biorxiv.org/invalid-path', false],
+      ['10.1000/123.456.789', false],
+      ['invalid-url', false],
+      ['', false],
+    ])('should validate correct bioRxiv URLs', (url, expected) => {
+      const result = isValidBiorxivURL(url);
+      expect(result).toBe(expected);
     });
   });
 
@@ -270,99 +214,6 @@ describe('BioRxiv URL Parser', () => {
       const url = 'https://example.com/not-biorxiv';
       const result = parseBiorxivURL(url);
       expect(result).toBeNull();
-    });
-  });
-
-  describe('formatDOI', () => {
-    it('should format DOI with version', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
-      const result = formatDOI(doi);
-      expect(result).toBe('10.1101/2024-01-25.577295 (v3)');
-    });
-
-    it('should format DOI without version', () => {
-      const doi = '10.1101/2024.01.25.577295';
-      const result = formatDOI(doi);
-      expect(result).toBe('10.1101/2024-01-25.577295');
-    });
-
-    it('should return original DOI if parsing fails', () => {
-      const doi = 'invalid-doi';
-      const result = formatDOI(doi);
-      expect(result).toBe('invalid-doi');
-    });
-  });
-
-  describe('getDateFromDOI', () => {
-    it('should extract date from valid DOI', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
-      const result = getDateFromDOI(doi);
-
-      expect(result).toBeInstanceOf(Date);
-      expect(result?.getFullYear()).toBe(2024);
-      expect(result?.getMonth()).toBe(0); // January is 0
-      expect(result?.getDate()).toBe(25);
-    });
-
-    it('should return null for invalid DOI', () => {
-      const doi = 'invalid-doi';
-      const result = getDateFromDOI(doi);
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('getExpectedS3Path', () => {
-    it('should return current content path for recent DOI', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
-      const result = getExpectedS3Path(doi);
-      expect(result).toBe('Current_Content/January_2024/');
-    });
-
-    it('should return current content path for 2019 DOI', () => {
-      const doi = '10.1101/2019.12.31.123456v1';
-      const result = getExpectedS3Path(doi);
-      expect(result).toBe('Current_Content/December_2019/');
-    });
-
-    it('should return back content path for old DOI', () => {
-      const doi = '10.1101/2018.01.15.789012';
-      const result = getExpectedS3Path(doi);
-      expect(result).toBe('Back_Content/Batch_01/');
-    });
-
-    it('should return null for invalid DOI', () => {
-      const doi = 'invalid-doi';
-      const result = getExpectedS3Path(doi);
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('isDOIInPeriod', () => {
-    it('should return true for DOI in period', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
-      const startDate = new Date('2024-01-01');
-      const endDate = new Date('2024-12-31');
-
-      const result = isDOIInPeriod(doi, startDate, endDate);
-      expect(result).toBe(true);
-    });
-
-    it('should return false for DOI outside period', () => {
-      const doi = '10.1101/2024.01.25.577295v3';
-      const startDate = new Date('2025-01-01');
-      const endDate = new Date('2025-12-31');
-
-      const result = isDOIInPeriod(doi, startDate, endDate);
-      expect(result).toBe(false);
-    });
-
-    it('should return false for invalid DOI', () => {
-      const doi = 'invalid-doi';
-      const startDate = new Date('2024-01-01');
-      const endDate = new Date('2024-12-31');
-
-      const result = isDOIInPeriod(doi, startDate, endDate);
-      expect(result).toBe(false);
     });
   });
 

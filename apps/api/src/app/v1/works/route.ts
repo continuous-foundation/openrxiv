@@ -19,59 +19,20 @@ const prisma = new PrismaClient();
 
 // GET endpoint for works search (not implemented)
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const doi = searchParams.get('doi');
-
-    if (!doi) {
-      return NextResponse.json(
-        {
-          error: 'Search not implemented',
-          message: 'DOI search endpoint is not yet implemented',
-          availableEndpoints: {
-            'get-by-doi': '/v1/works/[doiPrefix]/[doiSuffix]',
-            'create-work': 'POST /v1/works',
-            'delete-work': 'DELETE /v1/works',
-          },
-          note: 'Use /v1/works/[doiPrefix]/[doiSuffix] to get a specific work by DOI',
-          timestamp: new Date().toISOString(),
-        },
-        { status: 501 },
-      );
-    }
-
-    // Validate DOI format if provided
-    if (!isValidBiorxivDOI(doi)) {
-      return NextResponse.json(
-        {
-          error: 'Invalid DOI format',
-          doi: doi,
-          expectedFormat: '10.1101/YYYY.MM.DD.identifier',
-          message: 'Search not implemented, but DOI format is invalid',
-        },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Search not implemented',
-        message: 'DOI search endpoint is not yet implemented',
-        doi: doi,
-        availableEndpoints: {
-          'get-by-doi': `/v1/works/${doi.replace('/', '/')}`,
-          'create-work': 'POST /v1/works',
-          'delete-work': 'DELETE /v1/works',
-        },
-        note: `Use /v1/works/${doi.replace('/', '/')} to get this specific work`,
-        timestamp: new Date().toISOString(),
+  return NextResponse.json(
+    {
+      error: 'Search not implemented',
+      message: 'DOI search endpoint is not yet implemented',
+      availableEndpoints: {
+        'get-by-doi': '/v1/works/[doiPrefix]/[doiSuffix]',
+        'create-work': 'POST /v1/works',
+        'delete-work': 'DELETE /v1/works',
       },
-      { status: 501 },
-    );
-  } catch (error) {
-    console.error('Error in works GET endpoint:', error);
-    return createErrorResponse('Internal server error', 500);
-  }
+      note: 'Use /v1/works/[doiPrefix]/[doiSuffix] to get a specific work by DOI',
+      timestamp: new Date().toISOString(),
+    },
+    { status: 501 },
+  );
 }
 
 // Protected POST endpoint for creating works
