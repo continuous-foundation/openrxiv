@@ -13,6 +13,7 @@ import {
   type FolderStructure,
 } from 'biorxiv-utils';
 import { generateMonthRange, parseMonthInput, validateMonthFormat } from '../utils/index.js';
+import { parseBatchInput, validateBatchFormat } from '../utils/batches.js';
 
 interface BatchOptions {
   month?: string;
@@ -40,7 +41,7 @@ export const batchProcessCommand = new Command('batch-process')
   )
   .option(
     '-b, --batch <batch>',
-    'Batch to process (e.g., "1", "batch-1", "Batch_01"). Use this for historical content before 2018-12.',
+    'Batch to process. Supports: single batch (e.g., "1"), range (e.g., "1-10"), or comma-separated list (e.g., "1,2,3"). Use this for historical content before 2018-12.',
   )
   .option('-s, --server <server>', 'Server type: biorxiv or medrxiv (default: biorxiv)', 'biorxiv')
   .option(
@@ -146,12 +147,30 @@ export const batchProcessCommand = new Command('batch-process')
           process.exit(1);
         }
       } else if (options.batch) {
-        // Process a single batch
-        const batchStructure = getFolderStructure({
-          batch: options.batch,
-          server: options.server,
-        });
-        foldersToProcess = [batchStructure];
+        // Process batch(es) - support ranges like "1-10" or comma-separated lists
+        try {
+          const batchesToProcess = parseBatchInput(options.batch);
+
+          // Validate all batches
+          const invalidBatches = batchesToProcess.filter((b) => !validateBatchFormat(b));
+          if (invalidBatches.length > 0) {
+            console.error(`❌ Invalid batch format(s): ${invalidBatches.join(', ')}`);
+            console.error(
+              'Expected format: single batch (e.g., "1"), range (e.g., "1-10"), or comma-separated list (e.g., "1,2,3")',
+            );
+            process.exit(1);
+          }
+
+          // Convert batches to content structures
+          foldersToProcess = batchesToProcess.map((batch) =>
+            getFolderStructure({ batch, server: options.server }),
+          );
+        } catch (error) {
+          console.error(
+            `❌ Error parsing batch input: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          process.exit(1);
+        }
       } else {
         // Generate month range and convert to content structures
         const monthRange = generateMonthRange();
