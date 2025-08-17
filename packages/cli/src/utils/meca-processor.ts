@@ -175,7 +175,8 @@ async function extractMecaSelective(mecaPath: string, outputDir: string): Promis
           !instance['@_href'].includes('manifest') &&
           !instance['@_href'].includes('directives')
         ) {
-          jatsRelativePath = instance['@_href'];
+          // Normalize path separators to Unix style
+          jatsRelativePath = instance['@_href'].replace(/\\/g, '/');
           break;
         }
       }
@@ -190,7 +191,8 @@ async function extractMecaSelective(mecaPath: string, outputDir: string): Promis
   console.log(`  📄 Found JATS file in manifest: ${jatsRelativePath}`);
 
   // Extract the JATS file using the relative path from manifest
-  const jatsEntry = zip.getEntry(jatsRelativePath);
+  const jatsEntry =
+    zip.getEntry(jatsRelativePath) || zip.getEntry(jatsRelativePath.replace(/\//g, '\\'));
   if (jatsEntry) {
     console.log(`  🔍 Extracting JATS file: ${jatsRelativePath} to ${extractedDir}`);
 
@@ -304,7 +306,9 @@ function findJATSFile(manifest: MECAManifest, extractedDir: string): string | nu
           !instance['@_href'].includes('manifest') &&
           !instance['@_href'].includes('directives')
         ) {
-          return path.join(extractedDir, instance['@_href']);
+          // Normalize path separators to Unix style
+          const normalizedPath = instance['@_href'].replace(/\\/g, '/');
+          return path.join(extractedDir, normalizedPath);
         }
       }
     }
