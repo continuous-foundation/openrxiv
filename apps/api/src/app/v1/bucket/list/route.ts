@@ -41,9 +41,6 @@ export async function GET(request: NextRequest) {
       },
       take: limit,
       skip: offset,
-      orderBy: {
-        receivedDate: 'desc',
-      },
       select: {
         doi: true,
         version: true,
