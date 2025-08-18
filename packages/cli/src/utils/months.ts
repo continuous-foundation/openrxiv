@@ -36,10 +36,23 @@ export function generateMonthRange(): string[] {
 export function parseMonthInput(monthInput: string): string[] {
   // Handle comma-separated list
   if (monthInput.includes(',')) {
-    return monthInput
+    const parts = monthInput
       .split(',')
       .map((m) => m.trim())
       .filter((m) => m.length > 0);
+
+    // Process each part (which may contain wildcards)
+    const result: string[] = [];
+    for (const part of parts) {
+      if (part.includes('*')) {
+        // Expand wildcard pattern
+        result.push(...parseWildcardPattern(part));
+      } else {
+        // Single month
+        result.push(part);
+      }
+    }
+    return result;
   }
 
   // Handle wildcard pattern (e.g., "2025-*")

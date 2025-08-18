@@ -31,6 +31,7 @@ interface BatchOptions {
   maxFileSize: string;
   awsBucket: string;
   awsRegion: string;
+  checkIndividualLimit: number;
 }
 
 export const batchProcessCommand = new Command('batch-process')
@@ -68,6 +69,11 @@ export const batchProcessCommand = new Command('batch-process')
   .option('--max-file-size <size>', 'Skip files larger than this size (e.g., 100MB, 2GB)', '')
   .option('--aws-bucket <bucket>', 'AWS S3 bucket name (auto-set based on server if not specified)')
   .option('--aws-region <region>', 'AWS region', 'us-east-1')
+  .option(
+    '--check-individual-limit <number>',
+    'Threshold for individual checking (default: 100)',
+    '100',
+  )
   .action(async (options: BatchOptions) => {
     if (!options.apiKey) {
       console.error(
@@ -84,7 +90,11 @@ export const batchProcessCommand = new Command('batch-process')
       process.exit(1);
     }
     try {
-      if (options.batch) {
+      if (options.batch && options.month) {
+        console.log(
+          `🚀 Starting batch processing for batch: ${options.batch} and month: ${options.month}`,
+        );
+      } else if (options.batch) {
         console.log(`🚀 Starting batch processing for batch: ${options.batch}`);
       } else if (options.month) {
         console.log(`🚀 Starting batch processing for month: ${options.month}`);
@@ -128,25 +138,30 @@ export const batchProcessCommand = new Command('batch-process')
         try {
           const monthsToProcess = parseMonthInput(options.month);
 
-          // Validate all months
+          // Validate all months after wildcard expansion
           const invalidMonths = monthsToProcess.filter((m) => !validateMonthFormat(m));
           if (invalidMonths.length > 0) {
             console.error(`❌ Invalid month format(s): ${invalidMonths.join(', ')}`);
-            console.error('Expected format: YYYY-MM (e.g., 2025-01)');
+            console.error(
+              'Expected format: YYYY-MM (e.g., 2025-01) or wildcard pattern (e.g., 2025-*)',
+            );
             process.exit(1);
           }
 
           // Convert months to content structures
-          foldersToProcess = monthsToProcess.map((month) =>
+          const monthStructures = monthsToProcess.map((month) =>
             getFolderStructure({ month, server: options.server }),
           );
+          foldersToProcess.push(...monthStructures);
         } catch (error) {
           console.error(
             `❌ Error parsing month input: ${error instanceof Error ? error.message : String(error)}`,
           );
           process.exit(1);
         }
-      } else if (options.batch) {
+      }
+
+      if (options.batch) {
         // Process batch(es) - support ranges like "1-10" or comma-separated lists
         try {
           const batchesToProcess = parseBatchInput(options.batch);
@@ -162,22 +177,26 @@ export const batchProcessCommand = new Command('batch-process')
           }
 
           // Convert batches to content structures
-          foldersToProcess = batchesToProcess.map((batch) =>
+          const batchStructures = batchesToProcess.map((batch) =>
             getFolderStructure({ batch, server: options.server }),
           );
+          foldersToProcess.push(...batchStructures);
         } catch (error) {
           console.error(
             `❌ Error parsing batch input: ${error instanceof Error ? error.message : String(error)}`,
           );
           process.exit(1);
         }
-      } else {
+      }
+
+      // Only generate month range if no other folders were specified
+      if (foldersToProcess.length === 0) {
         // Generate month range and convert to content structures
         const monthRange = generateMonthRange();
         const monthStructures = monthRange.map((month) =>
           getFolderStructure({ month, server: options.server }),
         );
-        foldersToProcess = monthStructures;
+        foldersToProcess.push(...monthStructures);
       }
 
       // Remove duplicates and sort chronologically for all cases
@@ -186,6 +205,16 @@ export const batchProcessCommand = new Command('batch-process')
 
       console.log(`🚀 Starting processing for ${foldersToProcess.length} folders(s)`);
       console.log(`📅 Processing folders: ${foldersToProcess.map((s) => s.batch).join(', ')}`);
+
+      const allStats: Array<{
+        folderName: string;
+        totalFiles: number;
+        totalProcessed: number;
+        newlyProcessed: number;
+        alreadyProcessed: number;
+        errors: number;
+        filteredCount: number;
+      }> = [];
 
       for (const folder of foldersToProcess) {
         const displayName =
@@ -200,20 +229,77 @@ export const batchProcessCommand = new Command('batch-process')
           continue;
         }
 
-        // Update totals (these will be populated by processBatch)
-        // For now, we'll just track that the folder was processed
+        // Collect statistics
+        if (result.stats) {
+          allStats.push(result.stats);
+        }
+
         console.log(`✅ ${displayName} completed successfully`);
       }
 
-      // Final summary across all folders
-      if (foldersToProcess.length > 1) {
-        const summaryType = options.month ? 'batch processing' : 'backwards batch processing';
-        console.log(`\n🎉 ${summaryType} completed!`);
-        console.log(`📅 Processed ${foldersToProcess.length} folders`);
-        console.log(`📊 Total folders processed: ${foldersToProcess.length}`);
-      } else {
-        console.log(`\n🎉 Folder processing completed!`);
-        console.log(`📅 Processed folder: ${foldersToProcess[0].batch}`);
+      // Display summary table
+      if (allStats.length > 0) {
+        console.log('\n📊 Processing Summary');
+        console.log('═'.repeat(80));
+        console.log(
+          'Folder'.padEnd(20) +
+            'Total'.padStart(8) +
+            'Processed'.padStart(12) +
+            'New'.padStart(8) +
+            'Cached'.padStart(8) +
+            'Errors'.padStart(8) +
+            'Filtered'.padStart(10),
+        );
+        console.log('─'.repeat(80));
+
+        for (const stats of allStats) {
+          const folderName = stats.folderName.padEnd(20);
+          const total = stats.totalFiles.toString().padStart(8);
+          const processed = stats.totalProcessed.toString().padStart(12);
+          const newlyProcessed = stats.newlyProcessed.toString().padStart(8);
+          const alreadyProcessed = stats.alreadyProcessed.toString().padStart(8);
+          const errors = stats.errors.toString().padStart(8);
+          const filtered = stats.filteredCount.toString().padStart(10);
+
+          console.log(
+            `${folderName}${total}${processed}${newlyProcessed}${alreadyProcessed}${errors}${filtered}`,
+          );
+        }
+        console.log('─'.repeat(80));
+
+        // Calculate totals
+        const totalFiles = allStats.reduce((sum, stat) => sum + stat.totalFiles, 0);
+        const totalProcessed = allStats.reduce((sum, stat) => sum + stat.totalProcessed, 0);
+        const totalNewlyProcessed = allStats.reduce((sum, stat) => sum + stat.newlyProcessed, 0);
+        const totalAlreadyProcessed = allStats.reduce(
+          (sum, stat) => sum + stat.alreadyProcessed,
+          0,
+        );
+        const totalErrors = allStats.reduce((sum, stat) => sum + stat.errors, 0);
+        const totalFiltered = allStats.reduce((sum, stat) => sum + stat.filteredCount, 0);
+
+        const totalFolderName = 'TOTAL'.padEnd(20);
+        const totalTotal = totalFiles.toString().padStart(8);
+        const totalProcessedStr = totalProcessed.toString().padStart(12);
+        const totalNewlyProcessedStr = totalNewlyProcessed.toString().padStart(8);
+        const totalAlreadyProcessedStr = totalAlreadyProcessed.toString().padStart(8);
+        const totalErrorsStr = totalErrors.toString().padStart(8);
+        const totalFilteredStr = totalFiltered.toString().padStart(10);
+
+        console.log(
+          `${totalFolderName}${totalTotal}${totalProcessedStr}${totalNewlyProcessedStr}${totalAlreadyProcessedStr}${totalErrorsStr}${totalFilteredStr}`,
+        );
+        console.log('═'.repeat(80));
+
+        // Final summary message
+        if (foldersToProcess.length > 1) {
+          const summaryType = options.month ? 'batch processing' : 'backwards batch processing';
+          console.log(`\n🎉 ${summaryType} completed!`);
+          console.log(`📅 Processed ${foldersToProcess.length} folders`);
+        } else {
+          console.log(`\n🎉 Folder processing completed!`);
+          console.log(`📅 Processed folder: ${foldersToProcess[0].batch}`);
+        }
       }
     } catch (error) {
       console.error('❌ Error in batch processing:', error);
@@ -227,7 +313,19 @@ export const batchProcessCommand = new Command('batch-process')
 async function processBatch(
   folder: FolderStructure,
   options: BatchOptions,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  stats?: {
+    folderName: string;
+    totalFiles: number;
+    totalProcessed: number;
+    newlyProcessed: number;
+    alreadyProcessed: number;
+    errors: number;
+    filteredCount: number;
+  };
+}> {
   try {
     // Step 1: List available MECA files for the folder
     const availableFiles = await listAvailableFiles(folder, options.limit, options);
@@ -239,7 +337,12 @@ async function processBatch(
     }
 
     // Step 2: Check which files are already processed
-    const processingStatus = await checkProcessingStatus(availableFiles, options.apiUrl, folder);
+    const processingStatus = await checkProcessingStatus(
+      availableFiles,
+      options.apiUrl,
+      folder,
+      options.checkIndividualLimit,
+    );
 
     let filesToProcess = options.force
       ? availableFiles
@@ -279,14 +382,28 @@ async function processBatch(
     console.log(`📊 Files to process: ${filesToProcess.length}`);
     console.log(`✅ Already processed: ${availableFiles.length - filesToProcess.length}`);
 
+    // Prepare statistics (for both dry-run and actual processing)
+    const stats = {
+      folderName: folder.batch,
+      totalFiles: availableFiles.length,
+      totalProcessed: availableFiles.length - filesToProcess.length, // already processed
+      newlyProcessed: filesToProcess.length, // files that would be processed (for dry-run) or were processed (for actual)
+      alreadyProcessed: availableFiles.length - filesToProcess.length,
+      errors: 0, // will be updated during actual processing
+      filteredCount: filteredCount,
+    };
+
     if (options.dryRun) {
       console.log('\n📋 Files that would be processed:');
-      filesToProcess.forEach((file) => {
+      filesToProcess.slice(0, 10).forEach((file) => {
         console.log(
           `  - ${file.s3Key} (${formatFileSize(file.fileSize)}, ${file.lastModified.toLocaleDateString()})`,
         );
       });
-      return { success: true };
+      if (filesToProcess.length > 10) {
+        console.log(`  - ${filesToProcess.length - 10} more files...`);
+      }
+      return { success: true, stats };
     }
 
     // Step 3: Process files with concurrency control
@@ -399,7 +516,12 @@ async function processBatch(
       console.log(`💾 Cleanup: MECA files and extracted content preserved`);
     }
 
-    return { success: true };
+    // Update statistics with actual processing results
+    stats.newlyProcessed = processedCount;
+    stats.totalProcessed = availableFiles.length - filesToProcess.length + processedCount; // already processed + newly processed
+    stats.errors = errorCount;
+
+    return { success: true, stats };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return { success: false, error: errorMessage };
@@ -493,10 +615,67 @@ async function listAvailableFiles(
   });
 }
 
+/**
+ * Check the processing status of individual files.
+ *
+ * This is necessary if the list coming back from a large query misses some files.
+ */
+async function checkIndividualProcessingStatus(
+  files: S3FileInfo[],
+  apiUrl: string,
+  status: Record<string, { exists: boolean; paper?: any }>,
+): Promise<void> {
+  console.log('  🔍 Performing individual file status checks...');
+
+  // Create a concurrency limiter for API requests
+  const limit = pLimit(10);
+
+  // Create array of checking functions
+  const checkingFunctions = files.map((file) => {
+    return limit(async () => {
+      try {
+        // Check individual file status using the bucket endpoint
+        const response = await axios.get(
+          `${apiUrl}/v1/bucket?key=${encodeURIComponent(file.s3Key)}`,
+        );
+
+        if (response.status === 200 && response.data) {
+          // File exists and has data
+          status[file.s3Key] = { exists: true, paper: response.data };
+          console.log(`    ✅ ${file.s3Key} - Found in database`);
+        } else {
+          // File not found or no data
+          status[file.s3Key] = { exists: false };
+          console.log(`    ❌ ${file.s3Key} - Not found in database`);
+        }
+      } catch (error: any) {
+        if (error.response?.status === 404) {
+          // File not found
+          status[file.s3Key] = { exists: false };
+          console.log(`    ❌ ${file.s3Key} - Not found in database (404)`);
+        } else {
+          // Other error - assume not processed
+          status[file.s3Key] = { exists: false };
+          console.log(`    ⚠️  ${file.s3Key} - Error checking status: ${error.message}`);
+        }
+      }
+    });
+  });
+
+  // Execute all checks concurrently
+  await Promise.all(checkingFunctions);
+
+  const processedCount = Object.values(status).filter((s) => s.exists).length;
+  console.log(
+    `  📊 Individual check complete: ${processedCount}/${files.length} files actually processed`,
+  );
+}
+
 async function checkProcessingStatus(
   files: S3FileInfo[],
   apiUrl: string,
   folder: FolderStructure,
+  checkIndividualLimit: number = 100,
 ): Promise<Record<string, { exists: boolean; paper?: any }>> {
   const status: Record<string, { exists: boolean; paper?: any }> = {};
   const processedFiles = new Set<string>();
@@ -554,6 +733,16 @@ async function checkProcessingStatus(
   console.log(
     `  📊 Requested files status: ${Object.values(finalStatus).filter((s) => s.exists).length}/${files.length} already processed`,
   );
+
+  const filesToCheck = files.filter((file) => !finalStatus[file.s3Key]?.exists);
+
+  // If individual checking is enabled and we have fewer files than the limit, do individual checks
+  if (filesToCheck.length > 0 && filesToCheck.length < checkIndividualLimit) {
+    console.log(
+      `🔍 Individual checking enabled (${filesToCheck.length} files < ${checkIndividualLimit} limit)`,
+    );
+    await checkIndividualProcessingStatus(filesToCheck, apiUrl, finalStatus);
+  }
 
   return finalStatus;
 }

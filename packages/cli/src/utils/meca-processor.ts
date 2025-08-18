@@ -4,6 +4,7 @@ import { fromXml } from 'xast-util-from-xml';
 import type { Root, Element } from 'xast';
 import axios from 'axios';
 import AdmZip from 'adm-zip';
+import { characterEntities } from 'character-entities';
 
 interface MECAManifest {
   item: Array<{
@@ -324,7 +325,10 @@ async function parseJATS(jatsFile: string): Promise<{
   acceptedDate?: string;
   title?: string;
 }> {
-  const jatsContent = fs.readFileSync(jatsFile, 'utf-8');
+  let jatsContent = fs.readFileSync(jatsFile, 'utf-8');
+
+  // Preprocess XML content to fix common HTML entities
+  jatsContent = preprocessXMLContent(jatsContent);
 
   // Use xast-util-from-xml for JATS parsing
   const ast = fromXml(jatsContent);
@@ -343,6 +347,42 @@ async function parseJATS(jatsFile: string): Promise<{
     acceptedDate: dates.acceptedDate,
     title,
   };
+}
+
+/**
+ * Preprocess XML content to fix common HTML entities that cause parsing errors
+ * @param xmlContent Raw XML content
+ * @returns Preprocessed XML content with entities replaced
+ */
+export function preprocessXMLContent(xmlContent: string): string {
+  // Define all valid HTML entities that we recognize
+  const validEntities = Object.keys(characterEntities);
+  // First, escape any unescaped ampersands that cause "Unterminated reference" errors
+  // This handles cases like "Bill & Melinda" where & is not properly escaped
+  const validEntityPattern = validEntities.join('|');
+  let processedContent = xmlContent.replace(
+    new RegExp(`&(?!(?:${validEntityPattern}|#\\d+);)`, 'g'),
+    '&#38;',
+  );
+
+  // Now replace HTML entities with their Unicode equivalents
+  // This handles cases like &ndash;, &lt;, etc.
+  // Note: We do NOT convert &amp; to & to avoid circular problems
+  const entityReplacements: Record<string, string> = {
+    ...Object.fromEntries(
+      Object.entries(characterEntities).map(([key, value]) => [`&${key};`, value]),
+    ),
+    '&lt;': '&#60;', // less than
+    '&gt;': '&#62;', // greater than
+    '&amp;': '&#38;', // ampersand
+  };
+
+  // Replace HTML entities
+  for (const [entity, replacement] of Object.entries(entityReplacements)) {
+    processedContent = processedContent.replace(new RegExp(entity, 'g'), replacement);
+  }
+
+  return processedContent;
 }
 
 // Helper functions to navigate the XAST
