@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { DOIParts } from 'biorxiv-utils';
-import { parseDOI } from 'biorxiv-utils';
+import type { DOIParts } from 'openrxiv-utils';
+import { parseDOI } from 'openrxiv-utils';
 import { formatWorkDTO } from '@/dtos/work';
 
 // Zod validation schema for creating works

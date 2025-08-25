@@ -30,7 +30,7 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "biorxiv-utils": ["../utils/src/index.ts"]
+      "openrxiv-utils": ["../utils/src/index.ts"]
     }
   },
   "include": ["."],

@@ -1,17 +1,18 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import boxen from 'boxen';
-import { createBiorxivApiClient, getServerFromDOI } from '../api/biorxiv-api.js';
-import { parseBiorxivURL } from 'biorxiv-utils';
+import { createOpenRxivApiClient, getServerFromDOI } from '../api/api-client.js';
+import { parseBiorxivURL } from 'openrxiv-utils';
+import { getDefaultServer } from '../utils/index.js';
 
 export const summaryCommand = new Command('summary')
   .description('Get a summary of a bioRxiv preprint from a URL or DOI')
   .argument('<url-or-doi>', 'bioRxiv URL or DOI to summarize')
   .option('-m, --more', 'Show additional details and full abstract')
-  .option('-s, --server <server>', 'Specify server (biorxiv or medrxiv)')
+  .option('-s, --server <server>', 'Specify server (biorxiv or medrxiv)', getDefaultServer())
   .action(async (urlOrDoi: string, options: any) => {
     try {
-      console.log(chalk.blue.bold('🔬 BioRxiv Preprint Summary'));
+      console.log(chalk.blue.bold(`🔬 ${options.server ?? ''} Preprint Summary`));
       console.log(chalk.blue('================================\n'));
 
       // Parse the input (could be URL or DOI)
@@ -46,7 +47,7 @@ export const summaryCommand = new Command('summary')
       console.log('');
 
       // Create API client
-      const apiClient = createBiorxivApiClient({
+      const apiClient = createOpenRxivApiClient({
         server,
         format: 'json',
         timeout: 15000,
@@ -65,7 +66,7 @@ export const summaryCommand = new Command('summary')
         console.log(chalk.yellow('⚠️  Paper not found on bioRxiv, trying medRxiv...'));
         fallbackServer = 'medrxiv';
 
-        const medrxivApiClient = createBiorxivApiClient({
+        const medrxivApiClient = createOpenRxivApiClient({
           server: 'medrxiv',
           format: 'json',
           timeout: 15000,
@@ -91,7 +92,7 @@ export const summaryCommand = new Command('summary')
 
       // If we used fallback, get versions from the fallback server
       if (fallbackServer && contentDetail) {
-        const fallbackApiClient = createBiorxivApiClient({
+        const fallbackApiClient = createOpenRxivApiClient({
           server: fallbackServer,
           format: 'json',
           timeout: 15000,

@@ -5,6 +5,10 @@ import type { Root, Element } from 'xast';
 import axios from 'axios';
 import AdmZip from 'adm-zip';
 import { characterEntities } from 'character-entities';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 interface MECAManifest {
   item: Array<{
@@ -65,10 +69,8 @@ export async function processMecaFile(
       fs.mkdirSync(options.output, { recursive: true });
     }
 
-    // Extract MECA file (selective or full based on options)
-    const extractedDir = options.selective
-      ? await extractMecaSelective(mecaPath, options.output || './extracted')
-      : await extractMeca(mecaPath, options.output || './extracted');
+    // Extract MECA file (auto-select method based on file size and options)
+    const extractedDir = await extractMecaAuto(mecaPath, options.output, options.selective);
     console.log(`📂 Extracted to: ${extractedDir}`);
 
     // Parse manifest
@@ -126,6 +128,26 @@ export async function processMecaFile(
   }
 }
 
+async function extractMecaAuto(
+  mecaPath: string,
+  outputDir: string = './downloads',
+  selective: boolean = true,
+): Promise<string> {
+  // Check file size to determine extraction method
+  const stats = fs.statSync(mecaPath);
+  const fileSizeGB = stats.size / (1024 * 1024 * 1024);
+  const LARGE_FILE_THRESHOLD_GB = 1.9;
+
+  if (fileSizeGB > LARGE_FILE_THRESHOLD_GB) {
+    console.log(`🚨 File is larger than ${LARGE_FILE_THRESHOLD_GB} GB, using unzip for efficiency`);
+    return await extractMeca(mecaPath, outputDir);
+  } else if (selective) {
+    return await extractMecaSelective(mecaPath, outputDir);
+  } else {
+    return await extractMeca(mecaPath, outputDir);
+  }
+}
+
 async function extractMeca(mecaPath: string, outputDir: string): Promise<string> {
   const extractedDir = path.join(outputDir, path.basename(mecaPath, path.extname(mecaPath)));
 
@@ -133,9 +155,25 @@ async function extractMeca(mecaPath: string, outputDir: string): Promise<string>
     fs.mkdirSync(extractedDir, { recursive: true });
   }
 
-  // Use adm-zip for ZIP extraction
-  const zip = new AdmZip(mecaPath);
-  zip.extractAllTo(extractedDir, true);
+  // Check if unzip is available
+  const unzipAvailable = await execAsync('which unzip').catch(() => false);
+
+  if (unzipAvailable) {
+    try {
+      // Use unzip command for file system extraction (handles large files better)
+      const { stderr } = await execAsync(`unzip -q "${mecaPath}" -d "${extractedDir}"`);
+      if (stderr && !stderr.includes('warning')) {
+        console.warn(`  ⚠️  Unzip warnings: ${stderr}`);
+      }
+    } catch (error) {
+      console.error(`  ❌ Unzip failed: ${error}`);
+      throw new Error(`Failed to extract MECA file with unzip: ${error}`);
+    }
+  } else {
+    // Fallback to AdmZip for full extraction
+    const zip = new AdmZip(mecaPath);
+    zip.extractAllTo(extractedDir, true);
+  }
 
   return extractedDir;
 }
@@ -251,7 +289,10 @@ async function parseManifest(extractedDir: string): Promise<MECAManifest> {
     throw new Error('Manifest file not found');
   }
 
-  const manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+  let manifestContent = fs.readFileSync(manifestPath, 'utf-8');
+
+  // Preprocess XML content to fix common HTML entities and reorder XML declaration if needed
+  manifestContent = preprocessXMLContent(manifestContent);
 
   // Use xast-util-from-xml to parse the manifest XML
   const ast = fromXml(manifestContent);
@@ -355,6 +396,33 @@ async function parseJATS(jatsFile: string): Promise<{
  * @returns Preprocessed XML content with entities replaced
  */
 export function preprocessXMLContent(xmlContent: string): string {
+  // Handle cases where XML declaration is not on the first line or has leading whitespace
+  // Split content into lines and look for XML declaration
+  const lines = xmlContent.split('\n');
+  const xmlDeclarationIndex = lines.findIndex((line) => line.trim().startsWith('<?xml'));
+
+  if (xmlDeclarationIndex >= 0) {
+    if (xmlDeclarationIndex === 0) {
+      // XML declaration is on first line but may have leading whitespace
+      // Trim the first line to remove leading whitespace
+      lines[0] = lines[0].trim();
+      // Reconstruct the content
+      xmlContent = lines.join('\n');
+    } else if (xmlDeclarationIndex < 5) {
+      // XML declaration is found but not on first line, reorder lines
+      const xmlDeclaration = lines[xmlDeclarationIndex];
+      // Remove the XML declaration from its current position
+      lines.splice(xmlDeclarationIndex, 1);
+      // Insert it at the beginning (without leading whitespace)
+      lines.unshift(xmlDeclaration.trim());
+      // Reconstruct the content
+      xmlContent = lines.join('\n');
+    }
+  }
+
+  // One specific case in January 2019
+  xmlContent = xmlContent.replace('<fn id="n1"fn-type="equal">', '<fn id="n1" fn-type="equal">');
+
   // Define all valid HTML entities that we recognize
   const validEntities = Object.keys(characterEntities);
   // First, escape any unescaped ampersands that cause "Unterminated reference" errors
@@ -520,8 +588,14 @@ function extractDates(ast: Root): { receivedDate: string; acceptedDate?: string 
     }
   }
 
+  // If no received date found, fall back to accepted date
   if (!receivedDate) {
-    throw new Error('Received date not found in JATS XML');
+    if (acceptedDate) {
+      console.log(`⚠️  No received date found, falling back to accepted date: ${acceptedDate}`);
+      receivedDate = acceptedDate;
+    } else {
+      throw new Error('Neither received date nor accepted date found in JATS XML');
+    }
   }
 
   return { receivedDate, acceptedDate };

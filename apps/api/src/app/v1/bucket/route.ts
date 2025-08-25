@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { parseDOI } from 'biorxiv-utils';
+import { parseDOI } from 'openrxiv-utils';
 import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
 import { formatWorkDTO } from '@/dtos/work';

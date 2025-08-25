@@ -1,6 +1,8 @@
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getS3Client } from './config.js';
-import { getFolderStructure } from 'biorxiv-utils';
+import { getFolderStructure } from 'openrxiv-utils';
+import { getDefaultServer } from '../utils/default-server.js';
+import { getBucketName } from './bucket-explorer.js';
 
 export interface S3FileInfo {
   s3Bucket: string;
@@ -15,15 +17,14 @@ export interface ListMonthOptions {
   batch?: string; // Format: "Batch_01" for Back_Content
   server?: 'biorxiv' | 'medrxiv'; // Server type (default: 'biorxiv')
   limit?: number; // Max number of files to return
-  awsBucket: string;
-  awsRegion?: string;
 }
 
 /**
  * Lists MECA files in S3 for a specific month with pagination support
  */
 export async function listMonthFiles(options: ListMonthOptions): Promise<S3FileInfo[]> {
-  const { month, batch, limit = 1000, awsBucket } = options;
+  const { month, batch, limit = 1000, server = getDefaultServer() } = options;
+  const awsBucket = getBucketName(server);
 
   if (!month && !batch) {
     throw new Error('Either month or batch must be specified');

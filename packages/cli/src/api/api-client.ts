@@ -1,9 +1,11 @@
 /**
- * BioRxiv API Client
+ * openRxiv API Client
  * Provides access to bioRxiv and medRxiv APIs for fetching preprint metadata
  */
 
-export interface BiorxivContentDetail {
+import version from '../version.js';
+
+export interface WorkDetails {
   doi: string;
   title: string;
   authors: string;
@@ -28,8 +30,8 @@ export interface FundingInfo {
   award: string;
 }
 
-export interface BiorxivApiResponse {
-  collection: BiorxivContentDetail[];
+export interface ApiResponse {
+  collection: WorkDetails[];
   messages: ApiMessage[];
 }
 
@@ -41,17 +43,17 @@ export interface ApiMessage {
   offset: number;
 }
 
-export interface BiorxivApiOptions {
+export interface ApiOptions {
   format?: 'json' | 'xml' | 'html';
   server?: 'biorxiv' | 'medrxiv';
   timeout?: number;
 }
 
-export class BiorxivApiClient {
+export class OpenRxivApiClient {
   private baseUrl = 'https://api.biorxiv.org';
   private defaultTimeout = 10000; // 10 seconds
 
-  constructor(private options: BiorxivApiOptions = {}) {
+  constructor(private options: ApiOptions = {}) {
     this.options = {
       format: 'json',
       server: 'biorxiv',
@@ -65,10 +67,7 @@ export class BiorxivApiClient {
    * Endpoint: /details/[server]/[DOI]/na/[format]
    * Note: The API expects base DOIs without version numbers
    */
-  async getContentDetail(
-    doi: string,
-    options?: Partial<BiorxivApiOptions>,
-  ): Promise<BiorxivContentDetail | null> {
+  async getContentDetail(doi: string, options?: Partial<ApiOptions>): Promise<WorkDetails | null> {
     const opts = { ...this.options, ...options };
     const server = opts.server || 'biorxiv';
     const format = opts.format || 'json';
@@ -87,9 +86,9 @@ export class BiorxivApiClient {
       }
 
       // Parse response based on format
-      let data: BiorxivApiResponse;
+      let data: ApiResponse;
       if (format === 'json') {
-        data = response as BiorxivApiResponse;
+        data = response as ApiResponse;
       } else {
         // For XML/HTML, we'd need to parse differently
         throw new Error(`Format ${format} not yet implemented`);
@@ -114,8 +113,8 @@ export class BiorxivApiClient {
    */
   async getContentDetails(
     dois: string[],
-    options?: Partial<BiorxivApiOptions>,
-  ): Promise<(BiorxivContentDetail | null)[]> {
+    options?: Partial<ApiOptions>,
+  ): Promise<(WorkDetails | null)[]> {
     const results = await Promise.allSettled(
       dois.map((doi) => this.getContentDetail(doi, options)),
     );
@@ -134,10 +133,7 @@ export class BiorxivApiClient {
    * Get all versions of a preprint
    * This is useful for versioned preprints where the API returns multiple versions
    */
-  async getAllVersions(
-    doi: string,
-    options?: Partial<BiorxivApiOptions>,
-  ): Promise<BiorxivContentDetail[]> {
+  async getAllVersions(doi: string, options?: Partial<ApiOptions>): Promise<WorkDetails[]> {
     const opts = { ...this.options, ...options };
     const server = opts.server || 'biorxiv';
     const format = opts.format || 'json';
@@ -156,9 +152,9 @@ export class BiorxivApiClient {
       }
 
       // Parse response based on format
-      let data: BiorxivApiResponse;
+      let data: ApiResponse;
       if (format === 'json') {
-        data = response as BiorxivApiResponse;
+        data = response as ApiResponse;
       } else {
         // For XML/HTML, we'd need to parse differently
         throw new Error(`Format ${format} not yet implemented`);
@@ -186,8 +182,8 @@ export class BiorxivApiClient {
     startDate: string,
     endDate: string,
     cursor: number = 0,
-    options?: Partial<BiorxivApiOptions>,
-  ): Promise<BiorxivApiResponse | null> {
+    options?: Partial<ApiOptions>,
+  ): Promise<ApiResponse | null> {
     const opts = { ...this.options, ...options };
     const server = opts.server || 'biorxiv';
     const format = opts.format || 'json';
@@ -202,7 +198,7 @@ export class BiorxivApiClient {
         return null;
       }
 
-      return response as BiorxivApiResponse;
+      return response as ApiResponse;
     } catch (error) {
       console.error(`❌ Error fetching content details for date range:`, error);
       throw new Error(
@@ -218,8 +214,8 @@ export class BiorxivApiClient {
   async getRecentContentDetails(
     count: number,
     cursor: number = 0,
-    options?: Partial<BiorxivApiOptions>,
-  ): Promise<BiorxivApiResponse | null> {
+    options?: Partial<ApiOptions>,
+  ): Promise<ApiResponse | null> {
     const opts = { ...this.options, ...options };
     const server = opts.server || 'biorxiv';
     const format = opts.format || 'json';
@@ -234,7 +230,7 @@ export class BiorxivApiClient {
         return null;
       }
 
-      return response as BiorxivApiResponse;
+      return response as ApiResponse;
     } catch (error) {
       console.error(`❌ Error fetching recent content details:`, error);
       throw new Error(
@@ -250,8 +246,8 @@ export class BiorxivApiClient {
   async getContentDetailsByDays(
     days: number,
     cursor: number = 0,
-    options?: Partial<BiorxivApiOptions>,
-  ): Promise<BiorxivApiResponse | null> {
+    options?: Partial<ApiOptions>,
+  ): Promise<ApiResponse | null> {
     const opts = { ...this.options, ...options };
     const server = opts.server || 'biorxiv';
     const format = opts.format || 'json';
@@ -266,7 +262,7 @@ export class BiorxivApiClient {
         return null;
       }
 
-      return response as BiorxivApiResponse;
+      return response as ApiResponse;
     } catch (error) {
       console.error(`❌ Error fetching content details for days:`, error);
       throw new Error(
@@ -283,8 +279,8 @@ export class BiorxivApiClient {
     endDate: string,
     category: string,
     cursor: number = 0,
-    options?: Partial<BiorxivApiOptions>,
-  ): Promise<BiorxivApiResponse | null> {
+    options?: Partial<ApiOptions>,
+  ): Promise<ApiResponse | null> {
     const opts = { ...this.options, ...options };
     const server = opts.server || 'biorxiv';
     const format = opts.format || 'json';
@@ -301,7 +297,7 @@ export class BiorxivApiClient {
         return null;
       }
 
-      return response as BiorxivApiResponse;
+      return response as ApiResponse;
     } catch (error) {
       console.error(`❌ Error fetching content details for category:`, error);
       throw new Error(
@@ -322,7 +318,7 @@ export class BiorxivApiClient {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'biorxiv-meca-downloader/1.0.0',
+          'User-Agent': `biorxiv-cli/${version}`,
         },
       });
 
@@ -355,39 +351,13 @@ export class BiorxivApiClient {
       throw new Error('Unknown error occurred');
     }
   }
-
-  /**
-   * Check if the API is accessible
-   */
-  async ping(): Promise<boolean> {
-    try {
-      const response = await this.makeRequest(`${this.baseUrl}/details/biorxiv/1/0/json`);
-      return response !== null;
-    } catch (error) {
-      console.error('❌ API ping failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get API rate limit information from response headers
-   */
-  private getRateLimitInfo(response: Response): { remaining?: number; reset?: Date } {
-    const remaining = response.headers.get('X-RateLimit-Remaining');
-    const reset = response.headers.get('X-RateLimit-Reset');
-
-    return {
-      remaining: remaining ? parseInt(remaining, 10) : undefined,
-      reset: reset ? new Date(parseInt(reset, 10) * 1000) : undefined,
-    };
-  }
 }
 
 /**
  * Utility function to create a bioRxiv API client
  */
-export function createBiorxivApiClient(options?: BiorxivApiOptions): BiorxivApiClient {
-  return new BiorxivApiClient(options);
+export function createOpenRxivApiClient(options?: ApiOptions): OpenRxivApiClient {
+  return new OpenRxivApiClient(options);
 }
 
 /**

@@ -9,13 +9,18 @@ import { monthInfoCommand } from './commands/month-info.js';
 import { batchProcessCommand } from './commands/batch-process.js';
 import { setGlobalRequesterPays } from './aws/config.js';
 import version from './version.js';
+import { getCliName } from './utils/index.js';
+
+const cliName = getCliName();
 
 const program = new Command();
 
 program
-  .name('biorxiv')
-  .description('CLI tool to download bioRxiv MECA files from AWS S3 for text and data mining')
-  .version(`v${version}`, '-v, --version', 'Print the current version of the bioRxiv CLI');
+  .name(cliName)
+  .description(
+    `CLI tool to download bioRxiv/medRxiv MECA files from AWS S3 for text and data mining`,
+  )
+  .version(`v${version}`, '-v, --version', `Print the current version of the ${cliName} CLI`);
 
 // Add commands
 program.addCommand(listCommand);

@@ -11,9 +11,15 @@ import {
   removeDuplicateFolders,
   sortFoldersChronologically,
   type FolderStructure,
-} from 'biorxiv-utils';
-import { generateMonthRange, parseMonthInput, validateMonthFormat } from '../utils/index.js';
+} from 'openrxiv-utils';
+import {
+  generateMonthRange,
+  parseMonthInput,
+  validateMonthFormat,
+  getDefaultServer,
+} from '../utils/index.js';
 import { parseBatchInput, validateBatchFormat } from '../utils/batches.js';
+import { getBucketName } from '../aws/bucket-explorer.js';
 
 interface BatchOptions {
   month?: string;
@@ -29,8 +35,6 @@ interface BatchOptions {
   fullExtract: boolean;
   concurrency: number;
   maxFileSize: string;
-  awsBucket: string;
-  awsRegion: string;
   checkIndividualLimit: number;
 }
 
@@ -44,7 +48,7 @@ export const batchProcessCommand = new Command('batch-process')
     '-b, --batch <batch>',
     'Batch to process. Supports: single batch (e.g., "1"), range (e.g., "1-10"), or comma-separated list (e.g., "1,2,3"). Use this for historical content before 2018-12.',
   )
-  .option('-s, --server <server>', 'Server type: biorxiv or medrxiv (default: biorxiv)', 'biorxiv')
+  .option('-s, --server <server>', 'Server type: biorxiv or medrxiv', getDefaultServer())
   .option(
     '-l, --limit <number>',
     'Maximum number of files to process. If not specified, processes all available files',
@@ -111,20 +115,15 @@ export const batchProcessCommand = new Command('batch-process')
 
       if (!options.server) {
         // Default to biorxiv if no server is specified
-        options.server = 'biorxiv';
+        options.server = getDefaultServer();
       }
       if (!['biorxiv', 'medrxiv'].includes(options.server)) {
         console.error('❌ Invalid server. Please use "biorxiv" or "medrxiv".');
         process.exit(1);
       }
       // Auto-set AWS bucket based on server if not explicitly provided
-      if (!options.awsBucket) {
-        options.awsBucket =
-          options.server === 'medrxiv' ? 'medrxiv-src-monthly' : 'biorxiv-src-monthly';
-        console.log(`🪣 AWS Bucket: ${options.awsBucket} (auto-set based on server)`);
-      } else {
-        console.log(`🪣 AWS Bucket: ${options.awsBucket} (explicitly specified)`);
-      }
+      const awsBucket = getBucketName(options.server);
+      console.log(`🪣 AWS Bucket: ${awsBucket}`);
 
       // Create output directory
       if (!fs.existsSync(options.output)) {
@@ -427,7 +426,7 @@ async function processBatch(
           // Download the MECA file first
           await downloadFile(file.s3Key, {
             output: options.output,
-            bucket: options.awsBucket,
+            server: options.server,
           });
 
           // Get the local file path
@@ -610,8 +609,6 @@ async function listAvailableFiles(
     batch: folder.type === 'back' ? folder.batch : undefined,
     server: options.server,
     limit: actualLimit,
-    awsBucket: options.awsBucket,
-    awsRegion: options.awsRegion,
   });
 }
 

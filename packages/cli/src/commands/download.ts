@@ -1,23 +1,15 @@
-import { Command, Option } from 'commander';
+import { Command } from 'commander';
 import axios from 'axios';
 import { downloadFile } from '../aws/downloader.js';
 import { setGlobalRequesterPays } from '../aws/config.js';
 import { displayRequesterPaysError } from '../utils/requester-pays-error.js';
 
 export const downloadCommand = new Command('download')
-  .description('Download MECA files from the bioRxiv S3 bucket by DOI')
+  .description('Download MECA files from the bioRxiv/medRxiv S3 bucket by DOI')
   .argument('<doi>', 'DOI of the paper (e.g., "10.1101/2024.01.15.123456")')
   .option('-o, --output <dir>', 'Output directory for downloaded files', './downloads')
-  .option('-p, --parallel <number>', 'Number of parallel downloads', '3')
-  .option('--resume', 'Resume interrupted download if possible')
   .option('-a, --api-url <url>', 'API base URL', 'https://biorxiv.curvenote.dev')
   .option('--requester-pays', 'Enable requester-pays for S3 bucket access')
-  .addOption(
-    new Option(
-      '-k, --api-key <key>',
-      'API key for authentication (or use BIORXIV_API_KEY env var)',
-    ).env('BIORXIV_API_KEY'),
-  )
   .action(async (doi, options) => {
     try {
       // Validate DOI format

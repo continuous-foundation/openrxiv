@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import type { DOIParts } from 'biorxiv-utils';
-import { parseDOI, isValidBiorxivDOI, extractBaseDOI, extractVersion } from 'biorxiv-utils';
+import type { DOIParts } from 'openrxiv-utils';
+import { parseDOI, isValidBiorxivDOI, extractBaseDOI, extractVersion } from 'openrxiv-utils';
 import { withAuth } from '@/utils/withAuth';
 import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';

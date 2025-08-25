@@ -1,5 +1,5 @@
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { createWriteStream, existsSync, statSync } from 'fs';
+import { createWriteStream } from 'fs';
 import { mkdir } from 'fs/promises';
 import { dirname, join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -8,13 +8,13 @@ import chalk from 'chalk';
 import ora from 'ora';
 import cliProgress from 'cli-progress';
 import { getS3Client, getGlobalRequesterPays } from './config.js';
+import { getDefaultServer } from '../utils/default-server.js';
+import { getBucketName } from './bucket-explorer.js';
 
 export interface DownloadOptions {
   output?: string;
-  parallel?: number;
-  resume?: boolean;
   filename?: string;
-  bucket?: string; // Add bucket parameter
+  server?: 'biorxiv' | 'medrxiv';
 }
 
 export interface DownloadProgress {
@@ -25,12 +25,8 @@ export interface DownloadProgress {
 }
 
 export async function downloadFile(path: string, options: DownloadOptions): Promise<void> {
-  const {
-    output = './downloads',
-    parallel = 3,
-    resume = false,
-    bucket = 'biorxiv-src-monthly',
-  } = options;
+  const { output = './downloads', server = getDefaultServer() } = options;
+  const bucket = getBucketName(server);
   const client = await getS3Client();
 
   console.log(chalk.blue(`Downloading: ${path}`));
@@ -57,21 +53,6 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
 
     // Create output directory
     await mkdir(dirname(outputPath), { recursive: true });
-
-    // Check if file exists and handle resume
-    if (existsSync(outputPath) && resume) {
-      const stats = statSync(outputPath);
-      if (stats.size === fileSize) {
-        console.log(chalk.green('✓ File already exists and is complete'));
-        return;
-      }
-
-      if (stats.size < fileSize) {
-        console.log(chalk.yellow(`Resuming download from ${formatFileSize(stats.size)}`));
-        // Note: S3 doesn't support partial downloads with resume, so we'll download from scratch
-        // In a real implementation, you might want to implement proper resume logic
-      }
-    }
 
     // Start download
     const spinner = ora('Preparing download...').start();
@@ -163,50 +144,6 @@ export async function downloadFile(path: string, options: DownloadOptions): Prom
     }
     throw error;
   }
-}
-
-export async function downloadMultipleFiles(
-  paths: string[],
-  options: DownloadOptions,
-): Promise<void> {
-  const { output = './downloads', parallel = 3 } = options;
-
-  console.log(chalk.blue(`Downloading ${paths.length} files with ${parallel} parallel downloads`));
-  console.log(chalk.blue('=============================================================='));
-
-  const chunks = chunkArray(paths, parallel);
-  let completed = 0;
-  let failed = 0;
-
-  for (const chunk of chunks) {
-    const promises = chunk.map(async (path) => {
-      try {
-        await downloadFile(path, { ...options, output });
-        completed++;
-        console.log(chalk.green(`✓ Completed ${completed}/${paths.length}`));
-      } catch (error) {
-        failed++;
-        console.error(chalk.red(`✗ Failed to download ${path}: ${error}`));
-      }
-    });
-
-    await Promise.all(promises);
-  }
-
-  console.log(chalk.blue('Download Summary:'));
-  console.log(chalk.blue('================'));
-  console.log(chalk.green(`Completed: ${completed}`));
-  if (failed > 0) {
-    console.log(chalk.red(`Failed: ${failed}`));
-  }
-}
-
-function chunkArray<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
 }
 
 function formatFileSize(bytes: number): string {

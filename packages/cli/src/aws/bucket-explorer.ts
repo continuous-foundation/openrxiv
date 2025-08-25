@@ -2,12 +2,13 @@ import { ListObjectsV2Command, HeadObjectCommand } from '@aws-sdk/client-s3';
 import type { S3Client } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import { getS3Client } from './config.js';
-import { getFolderStructure } from 'biorxiv-utils';
+import { getFolderStructure } from 'openrxiv-utils';
+import { getDefaultServer } from '../utils/default-server.js';
 
 /**
  * Get the S3 bucket name based on the server
  */
-export function getBucketName(server: 'biorxiv' | 'medrxiv' = 'biorxiv'): string {
+export function getBucketName(server: 'biorxiv' | 'medrxiv' = getDefaultServer()): string {
   switch (server.toLowerCase()) {
     case 'medrxiv':
       return 'medrxiv-src-monthly';
@@ -40,7 +41,7 @@ export interface ContentItem {
 
 export async function listBucketContent(options: ListOptions): Promise<void> {
   const client = await getS3Client();
-  const { month, batch, limit = 50, server = 'biorxiv' } = options;
+  const { month, batch, limit = 50, server = getDefaultServer() } = options;
   const bucketName = getBucketName(server);
 
   console.log(chalk.blue(`Listing ${server} bucket content...`));
@@ -117,7 +118,7 @@ export async function listBucketContent(options: ListOptions): Promise<void> {
  */
 async function listFolder(
   client: S3Client,
-  server: 'biorxiv' | 'medrxiv' = 'biorxiv',
+  server: 'biorxiv' | 'medrxiv' = getDefaultServer(),
 ): Promise<void> {
   console.log(chalk.cyan('📁 Available Content Structure'));
   console.log(chalk.cyan('=============================='));
@@ -225,7 +226,7 @@ export async function getContentInfo(
   options: { detailed?: boolean; server?: 'biorxiv' | 'medrxiv' } = {},
 ): Promise<void> {
   const client = await getS3Client();
-  const { detailed = false, server = 'biorxiv' } = options;
+  const { detailed = false, server = getDefaultServer() } = options;
   const bucketName = getBucketName(server);
 
   console.log(chalk.blue(`Getting info for: ${path}`));

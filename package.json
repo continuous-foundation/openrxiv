@@ -1,6 +1,7 @@
 {
-  "name": "biorxiv-monorepo",
+  "name": "openrxiv-monorepo",
   "version": "0.0.0",
+  "description": "Comprehensive CLI tool and API for downloading and processing bioRxiv and medRxiv MECA files from AWS S3",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -14,6 +15,29 @@
     "test": "turbo run test",
     "clean": "turbo run clean"
   },
+  "keywords": [
+    "biorxiv",
+    "medrxiv",
+    "cli",
+    "aws",
+    "s3",
+    "download",
+    "meca",
+    "research",
+    "text-mining",
+    "data-mining",
+    "preprints"
+  ],
+  "author": "Rowan Cockett <rowan@curvenote.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/continuous-foundation/openrxiv.git"
+  },
+  "bugs": {
+    "url": "https://github.com/continuous-foundation/openrxiv/issues"
+  },
+  "homepage": "https://github.com/continuous-foundation/openrxiv#readme",
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^24.2.1",

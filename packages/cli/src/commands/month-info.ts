@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { ListObjectsV2Command } from '@aws-sdk/client-s3';
 import chalk from 'chalk';
 import { getS3Client } from '../aws/config.js';
-import { getFolderStructure } from 'biorxiv-utils';
+import { getFolderStructure } from 'openrxiv-utils';
 import { getBucketName } from '../aws/bucket-explorer.js';
+import { getDefaultServer } from '../utils/index.js';
 
 export const monthInfoCommand = new Command('month-info')
   .description(
@@ -11,7 +12,7 @@ export const monthInfoCommand = new Command('month-info')
   )
   .option('-m, --month <month>', 'Month to list (e.g., "January_2024" or "2024-01")')
   .option('-b, --batch <batch>', 'Batch to list (e.g., "1", "batch-1", "Batch_01")')
-  .option('-s, --server <server>', 'Server to use: "biorxiv" or "medrxiv"', 'biorxiv')
+  .option('-s, --server <server>', 'Server to use: "biorxiv" or "medrxiv"', getDefaultServer())
   .action(async (options) => {
     try {
       await listMonthMetadata(options);
@@ -36,7 +37,7 @@ async function listMonthMetadata(options: {
   server?: 'biorxiv' | 'medrxiv';
 }): Promise<void> {
   const client = await getS3Client();
-  const { month, batch, server = 'biorxiv' } = options;
+  const { month, batch, server = getDefaultServer() } = options;
   const bucketName = getBucketName(server);
 
   if (!month && !batch) {
@@ -128,7 +129,7 @@ function getContentType(key: string): 'meca' | 'pdf' | 'xml' | 'other' {
 function displaySummary(
   files: FileMetadata[],
   month: string,
-  server: 'biorxiv' | 'medrxiv' = 'biorxiv',
+  server: 'biorxiv' | 'medrxiv' = getDefaultServer(),
 ): void {
   console.log(chalk.blue.bold('📊 Summary Statistics'));
   console.log(chalk.blue('===================='));

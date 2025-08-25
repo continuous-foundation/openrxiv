@@ -1,5 +1,5 @@
 {
-  "name": "biorxiv-utils",
+  "name": "openrxiv-utils",
   "version": "0.0.0",
   "description": "Utility functions for bioRxiv operations including URL parsing and DOI handling",
   "main": "dist/index.js",

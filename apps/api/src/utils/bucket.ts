@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { FolderStructure } from 'biorxiv-utils';
-import { normalizeMonthToYYYYMM, normalizeBatch, getFolderStructure } from 'biorxiv-utils';
+import type { FolderStructure } from 'openrxiv-utils';
+import { normalizeMonthToYYYYMM, normalizeBatch, getFolderStructure } from 'openrxiv-utils';
 
 // Schema for listing files by folder (month or batch)
 export const listFilesSchema = z.object({

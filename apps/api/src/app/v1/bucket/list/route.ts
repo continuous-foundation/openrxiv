@@ -10,8 +10,8 @@ import {
   buildPaginationLinks,
 } from '@/utils/bucket';
 import { formatWorkDTO } from '@/dtos/work';
-import type { DOIParts } from 'biorxiv-utils';
-import { parseDOI } from 'biorxiv-utils';
+import type { DOIParts } from 'openrxiv-utils';
+import { parseDOI } from 'openrxiv-utils';
 
 const prisma = new PrismaClient();
 

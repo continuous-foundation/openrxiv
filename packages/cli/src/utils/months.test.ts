@@ -13,7 +13,7 @@ import {
   getFolderStructure,
   removeDuplicateFolders,
   sortFoldersChronologically,
-} from 'biorxiv-utils';
+} from 'openrxiv-utils';
 
 describe('Month Utilities', () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { parseDOI, isValidBiorxivDOI, extractBaseDOI, extractVersion } from 'biorxiv-utils';
+import { parseDOI, isValidBiorxivDOI, extractBaseDOI, extractVersion } from 'openrxiv-utils';
 
 interface ParsedDOI {
   fullDOI: string;

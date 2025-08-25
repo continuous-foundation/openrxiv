@@ -1,5 +1,5 @@
 import type { Work } from '@prisma/client';
-import type { DOIParts } from 'biorxiv-utils';
+import type { DOIParts } from 'openrxiv-utils';
 
 // Helper function to format work DTO with links
 export function formatWorkDTO(baseURL: string, work: Work, parsedDOI: DOIParts): any {

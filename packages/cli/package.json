@@ -1,10 +1,12 @@
 {
   "name": "biorxiv",
   "version": "0.0.0",
-  "description": "CLI tool to download bioRxiv MECA files from AWS S3 for text and data mining",
+  "description": "CLI tool to download openRxiv MECA files from AWS S3 for text and data mining",
   "main": "dist/src/index.js",
   "bin": {
-    "biorxiv": "./dist/biorxiv.cjs"
+    "biorxiv": "./dist/cli.cjs",
+    "openrxiv": "./dist/cli.cjs",
+    "medrxiv": "./dist/cli.cjs"
   },
   "files": [
     "dist"
@@ -12,16 +14,16 @@
   "type": "module",
   "scripts": {
     "clean": "rimraf dist",
-    "unlink": "npm uninstall -g biorxiv-cli",
+    "unlink": "npm uninstall -g biorxiv",
     "link": "npm run unlink; npm link;",
-    "dev": "npm run link && esbuild src/index.ts --bundle --outfile=dist/biorxiv.cjs --platform=node --external:fsevents --target=node14 --watch",
+    "dev": "npm run link && esbuild src/index.ts --bundle --outfile=dist/cli.cjs --platform=node --external:fsevents --target=node14 --watch",
     "lint": "eslint \"src/**/!(*.spec).ts\" -c ../../.eslintrc.cjs",
     "lint:format": "npx prettier --check \"src/**/*.ts\"",
     "test": "vitest run",
     "copy:version": "echo \"const version = '\"$npm_package_version\"';\nexport default version;\" > src/version.ts",
     "test:watch": "vitest watch",
     "build:esm": "tsc",
-    "build:cli": "esbuild src/index.ts --bundle --outfile=dist/biorxiv.cjs --platform=node --external:fsevents --target=node14",
+    "build:cli": "esbuild src/index.ts --bundle --outfile=dist/cli.cjs --platform=node --external:fsevents --target=node14",
     "build": "npm-run-all -l clean copy:version -p build:cli build:esm"
   },
   "keywords": [
@@ -35,7 +37,7 @@
     "text-mining",
     "data-mining"
   ],
-  "author": "Your Name",
+  "author": "Curvenote",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
@@ -44,7 +46,7 @@
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
     "axios": "^1.6.0",
-    "biorxiv-utils": "^0.0.0",
+    "openrxiv-utils": "^0.0.0",
     "boxen": "^8.0.1",
     "character-entities": "^2.0.2",
     "chalk": "^5.0.0",
@@ -65,10 +67,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/biorxiv-meca-downloader.git"
+    "url": "https://github.com/continuous-foundation/openrxiv.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/biorxiv-meca-downloader/issues"
+    "url": "https://github.com/continuous-foundation/openrxiv/issues"
   },
-  "homepage": "https://github.com/yourusername/biorxiv-meca-downloader#readme"
+  "homepage": "https://github.com/continuous-foundation/openrxiv#readme"
 }
