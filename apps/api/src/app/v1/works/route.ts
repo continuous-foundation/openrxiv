@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json(
     {
       error: 'Search not implemented',
-      message: 'DOI search endpoint is not yet implemented',
+      message: 'DOI search endpoint is not implemented',
       availableEndpoints: {
         'get-by-doi': '/v1/works/[doiPrefix]/[doiSuffix]',
         'create-work': 'POST /v1/works',

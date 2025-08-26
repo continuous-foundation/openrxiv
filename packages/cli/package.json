@@ -1,30 +1,21 @@
 {
-  "name": "biorxiv",
+  "name": "openrxiv-cli",
   "version": "0.0.0",
   "description": "CLI tool to download openRxiv MECA files from AWS S3 for text and data mining",
-  "main": "dist/src/index.js",
-  "bin": {
-    "biorxiv": "./dist/cli.cjs",
-    "openrxiv": "./dist/cli.cjs",
-    "medrxiv": "./dist/cli.cjs"
-  },
+  "main": "dist/index.js",
   "files": [
     "dist"
   ],
   "type": "module",
   "scripts": {
     "clean": "rimraf dist",
-    "unlink": "npm uninstall -g biorxiv",
-    "link": "npm run unlink; npm link;",
-    "dev": "npm run link && esbuild src/index.ts --bundle --outfile=dist/cli.cjs --platform=node --external:fsevents --target=node14 --watch",
     "lint": "eslint \"src/**/!(*.spec).ts\" -c ../../.eslintrc.cjs",
     "lint:format": "npx prettier --check \"src/**/*.ts\"",
     "test": "vitest run",
     "copy:version": "echo \"const version = '\"$npm_package_version\"';\nexport default version;\" > src/version.ts",
     "test:watch": "vitest watch",
     "build:esm": "tsc",
-    "build:cli": "esbuild src/index.ts --bundle --outfile=dist/cli.cjs --platform=node --external:fsevents --target=node14",
-    "build": "npm-run-all -l clean copy:version -p build:cli build:esm"
+    "build": "npm-run-all -l clean copy:version -p build:esm"
   },
   "keywords": [
     "biorxiv",
@@ -51,7 +42,7 @@
     "character-entities": "^2.0.2",
     "chalk": "^5.0.0",
     "cli-progress": "^3.12.0",
-    "commander": "^11.0.0",
+    "commander": "^14.0.0",
     "conf": "^10.0.0",
     "inquirer": "^9.0.0",
     "jszip": "^3.10.1",

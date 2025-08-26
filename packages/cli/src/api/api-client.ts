@@ -318,7 +318,7 @@ export class OpenRxivApiClient {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          'User-Agent': `biorxiv-cli/${version}`,
+          'User-Agent': `openrxiv-cli/${version}`,
         },
       });
 

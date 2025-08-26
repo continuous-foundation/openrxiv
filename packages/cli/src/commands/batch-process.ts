@@ -53,12 +53,12 @@ export const batchProcessCommand = new Command('batch-process')
     '-l, --limit <number>',
     'Maximum number of files to process. If not specified, processes all available files',
   )
-  .option('-a, --api-url <url>', 'API base URL', 'https://biorxiv.curvenote.dev')
+  .option('-a, --api-url <url>', 'API base URL', 'https://openrxiv.csf.now')
   .addOption(
     new Option(
       '-k, --api-key <key>',
-      'API key for authentication (or use BIORXIV_API_KEY env var)',
-    ).env('BIORXIV_API_KEY'),
+      'API key for authentication (or use OPENRXIV_BATCH_PROCESSING_API_KEY env var)',
+    ).env('OPENRXIV_BATCH_PROCESSING_API_KEY'),
   )
   .option('-o, --output <dir>', 'Output directory for extracted files', './batch-extracted')
   .option('--dry-run', 'List files without processing them', false)
@@ -79,9 +79,9 @@ export const batchProcessCommand = new Command('batch-process')
     '100',
   )
   .action(async (options: BatchOptions) => {
-    if (!options.apiKey) {
+    if (!options.apiKey && !options.dryRun) {
       console.error(
-        '❌ API key is required. Please provide a valid API key using --api-key or set the BIORXIV_API_KEY environment variable.',
+        '❌ API key is required. Please provide a valid API key using --api-key or set the OPENRXIV_BATCH_PROCESSING_API_KEY environment variable.',
       );
       process.exit(1);
     }
@@ -433,7 +433,7 @@ async function processBatch(
           const localFilePath = path.join(options.output, path.basename(file.s3Key));
 
           // Get API key from command line or environment variable
-          const apiKey = options.apiKey || process.env.BIORXIV_API_KEY;
+          const apiKey = options.apiKey || process.env.OPENRXIV_BATCH_PROCESSING_API_KEY;
 
           // Process the MECA file using the utility function
           const result = await processMecaFile(localFilePath, {

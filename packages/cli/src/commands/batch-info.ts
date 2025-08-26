@@ -6,7 +6,7 @@ import { getFolderStructure } from 'openrxiv-utils';
 import { getBucketName } from '../aws/bucket-explorer.js';
 import { getDefaultServer } from '../utils/index.js';
 
-export const monthInfoCommand = new Command('month-info')
+export const monthInfoCommand = new Command('batch-info')
   .description(
     'List detailed metadata for all files in a specific month or batch from bioRxiv or medRxiv',
   )

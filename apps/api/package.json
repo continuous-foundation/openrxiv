@@ -1,5 +1,5 @@
 {
-  "name": "biorxiv-s3-api",
+  "name": "openrxiv-s3-api",
   "version": "0.0.0",
   "private": true,
   "scripts": {

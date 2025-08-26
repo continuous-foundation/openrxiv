@@ -1,0 +1,53 @@
+{
+  "name": "medrxiv",
+  "version": "0.0.0",
+  "description": "CLI tool to download medRxiv MECA files from AWS S3 for text and data mining",
+  "bin": {
+    "medrxiv": "./dist/cli.cjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "clean": "rimraf dist",
+    "unlink": "npm uninstall -g biorxiv",
+    "link": "npm run unlink; npm link;",
+    "dev": "npm run link && esbuild src/index.ts --bundle --outfile=dist/cli.cjs --platform=node --external:fsevents --target=node14 --watch",
+    "lint": "eslint \"src/**/!(*.spec).ts\" -c ../../.eslintrc.cjs",
+    "lint:format": "npx prettier --check \"src/**/*.ts\"",
+    "build:cli": "esbuild src/index.ts --bundle --outfile=dist/cli.cjs --platform=node --external:fsevents --target=node14",
+    "copy:readme": "cp ../openrxiv/README.md README.md && sed -i '' 's/openrxiv/medrxiv/g' README.md && sed -i '' 's/openRxiv/medRxiv/g' README.md",
+    "build": "npm-run-all -l clean copy:readme -p build:cli"
+  },
+  "keywords": [
+    "medrxiv",
+    "biorxiv",
+    "openrxiv",
+    "cli",
+    "aws",
+    "s3",
+    "download",
+    "meca",
+    "research",
+    "text-mining",
+    "data-mining"
+  ],
+  "author": "Rowan Cockett <rowan@curvenote.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "openrxiv-cli": "^0.0.0",
+    "commander": "^14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/continuous-foundation/openrxiv.git"
+  },
+  "bugs": {
+    "url": "https://github.com/continuous-foundation/openrxiv/issues"
+  },
+  "homepage": "https://github.com/continuous-foundation/openrxiv#readme"
+}

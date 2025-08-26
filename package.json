@@ -13,7 +13,11 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "changeset": "changeset",
+    "version": "changeset version && npm install",
+    "publish": "npm run clean && npm run build -- --force && changeset publish && git push --follow-tags",
+    "publish:ci": "npm run build && changeset publish && git push --follow-tags"
   },
   "keywords": [
     "biorxiv",
@@ -39,6 +43,7 @@
   },
   "homepage": "https://github.com/continuous-foundation/openrxiv#readme",
   "devDependencies": {
+    "@changesets/cli": "^2.29.6",
     "@types/adm-zip": "^0.5.7",
     "@types/node": "^24.2.1",
     "esbuild": "^0.25.9",

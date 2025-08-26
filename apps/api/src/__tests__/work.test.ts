@@ -263,7 +263,7 @@ describe('Work Endpoints - Direct Function Testing', () => {
       expect(response.status).toBe(501);
       const body = await response.json();
       expect(body.error).toBe('Search not implemented');
-      expect(body.message).toBe('DOI search endpoint is not yet implemented');
+      expect(body.message).toBe('DOI search endpoint is not implemented');
       expect(body.availableEndpoints).toBeDefined();
     });
   });
