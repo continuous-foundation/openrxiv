@@ -17,7 +17,7 @@
     "lint": "eslint \"src/**/!(*.spec).ts\" -c ../../.eslintrc.cjs",
     "lint:format": "npx prettier --check \"src/**/*.ts\"",
     "build:cli": "esbuild src/index.ts --bundle --outfile=dist/cli.cjs --platform=node --external:fsevents --target=node14",
-    "copy:readme": "cp ../openrxiv/README.md README.md && sed -i '' 's/openrxiv/medrxiv/g' README.md && sed -i '' 's/openRxiv/medRxiv/g' README.md",
+    "copy:readme": "node ../../scripts/copy-readme.js",
     "build": "npm-run-all -l clean copy:readme -p build:cli"
   },
   "keywords": [
