@@ -1,6 +1,6 @@
 {
   "name": "openrxiv-utils",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Utility functions for bioRxiv operations including URL parsing and DOI handling",
   "main": "dist/index.js",
   "type": "module",

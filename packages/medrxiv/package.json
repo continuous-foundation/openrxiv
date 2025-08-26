@@ -1,6 +1,6 @@
 {
   "name": "medrxiv",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "CLI tool to download medRxiv MECA files from AWS S3 for text and data mining",
   "bin": {
     "medrxiv": "./dist/cli.cjs"
@@ -39,7 +39,7 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "openrxiv-cli": "^0.0.0",
+    "openrxiv-cli": "^0.0.1",
     "commander": "^14.0.0"
   },
   "repository": {
