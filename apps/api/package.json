@@ -1,6 +1,6 @@
 {
   "name": "openrxiv-s3-api",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -18,7 +18,7 @@
   "dependencies": {
     "@prisma/client": "^6.14.0",
     "next": "15.4.6",
-    "openrxiv-utils": "0.0.1",
+    "openrxiv-utils": "0.0.2",
     "supabase": "^2.34.3",
     "vitest": "^3.2.4",
     "zod": "^4.0.17"

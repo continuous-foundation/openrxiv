@@ -1,6 +1,6 @@
 {
   "name": "openrxiv-cli",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "CLI tool to download openRxiv MECA files from AWS S3 for text and data mining",
   "main": "dist/index.js",
   "files": [
@@ -37,7 +37,7 @@
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0",
     "axios": "^1.6.0",
-    "openrxiv-utils": "^0.0.1",
+    "openrxiv-utils": "^0.0.2",
     "boxen": "^8.0.1",
     "character-entities": "^2.0.2",
     "chalk": "^5.0.0",
