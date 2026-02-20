@@ -1,5 +1,5 @@
 import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import { NextRequest } from 'next/server';
 
 // Test utilities for Next.js API testing
@@ -40,7 +40,7 @@ export function createMockContext() {
 }
 
 // Database setup for integration tests
-export const prisma = new PrismaClient();
+export { prisma };
 
 beforeAll(async () => {
   // Connect to test database

@@ -1,14 +1,19 @@
 import { z } from 'zod';
 import type { DOIParts } from 'openrxiv-utils';
-import { parseDOI } from 'openrxiv-utils';
+import { parseDOI, BIORXIV_DOI_PREFIX_PATTERN } from 'openrxiv-utils';
 import { formatWorkDTO } from '@/dtos/work';
 
 // Zod validation schema for creating works
 export const createWorkSchema = z.object({
-  doi: z.string().regex(/^10\.1101\/(\d{4}\.\d{2}\.\d{2}\.)?\d{6,8}(v\d+)?$/, {
-    message:
-      'DOI must be in bioRxiv format: 10.1101/YYYY.MM.DD.XXXXXX or 10.1101/YYYY.MM.DD.XXXXXXvN or 10.1101/XXXXXX or 10.1101/XXXXXXvN',
-  }),
+  doi: z
+    .string()
+    .regex(
+      new RegExp(`^${BIORXIV_DOI_PREFIX_PATTERN}/(\\d{4}\\.\\d{2}\\.\\d{2}\\.)?\\d{6,8}(v\\d+)?$`),
+      {
+        message:
+          'DOI must be in bioRxiv format: 10.1101 or 10.64898/YYYY.MM.DD.XXXXXX or /XXXXXX (legacy)',
+      },
+    ),
   version: z.number().int().positive('Version must be a positive integer'),
   receivedDate: z.iso.datetime({ message: 'Received date must be a valid ISO datetime string' }),
   acceptedDate: z.iso
@@ -26,10 +31,15 @@ export type CreateWorkRequest = z.infer<typeof createWorkSchema>;
 
 // Zod validation schemas for delete requests
 export const deleteByDoiSchema = z.object({
-  doi: z.string().regex(/^10\.1101\/(\d{4}\.\d{2}\.\d{2}\.)?\d{6,8}(v\d+)?$/, {
-    message:
-      'DOI must be in bioRxiv format: 10.1101/YYYY.MM.DD.XXXXXX or 10.1101/YYYY.MM.DD.XXXXXXvN or 10.1101/XXXXXX or 10.1101/XXXXXXvN',
-  }),
+  doi: z
+    .string()
+    .regex(
+      new RegExp(`^${BIORXIV_DOI_PREFIX_PATTERN}/(\\d{4}\\.\\d{2}\\.\\d{2}\\.)?\\d{6,8}(v\\d+)?$`),
+      {
+        message:
+          'DOI must be in bioRxiv format: 10.1101 or 10.64898/YYYY.MM.DD.XXXXXX or /XXXXXX (legacy)',
+      },
+    ),
 });
 
 export const deleteByS3KeySchema = z.object({

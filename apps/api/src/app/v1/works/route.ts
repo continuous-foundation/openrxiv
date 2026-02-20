@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import type { DOIParts } from 'openrxiv-utils';
 import { parseDOI, isValidBiorxivDOI, extractBaseDOI, extractVersion } from 'openrxiv-utils';
 import { withAuth } from '@/utils/withAuth';
@@ -14,8 +14,6 @@ import {
   deleteVersion,
   deleteWorkByDoi,
 } from '@/utils/works';
-
-const prisma = new PrismaClient();
 
 // GET endpoint for works search (not implemented)
 export async function GET(request: NextRequest) {
@@ -154,7 +152,7 @@ export const DELETE = withAuth(
             {
               error: 'Invalid bioRxiv DOI format',
               doi: doi,
-              expectedFormat: '10.1101/YYYY.MM.DD.identifier',
+              expectedFormat: '10.1101 or 10.64898/YYYY.MM.DD.identifier (or legacy /XXXXXX)',
             },
             { status: 400 },
           );

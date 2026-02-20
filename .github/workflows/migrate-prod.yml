@@ -17,6 +17,8 @@ jobs:
         with:
           node-version: 22.x
           cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
       - name: Apply all pending migrations to the database
         working-directory: ./apps/api
         run: npx prisma migrate deploy --schema=./prisma/schema.prisma

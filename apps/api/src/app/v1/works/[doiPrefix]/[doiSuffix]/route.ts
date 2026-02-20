@@ -1,14 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import type { DOIParts } from 'openrxiv-utils';
 import { parseDOI } from 'openrxiv-utils';
 import { createErrorResponse } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
 import { parseAndValidateDOI } from '@/utils/work';
 import { formatWorkDTO } from '@/dtos/work';
-
-const prisma = new PrismaClient();
 
 export async function GET(
   request: NextRequest,
@@ -26,7 +24,7 @@ export async function GET(
           {
             error: parsedDOI.error,
             doi: parsedDOI.fullDOI,
-            expectedFormat: '10.1101/YYYY.MM.DD.identifier',
+            expectedFormat: '10.1101 or 10.64898/YYYY.MM.DD.identifier (or legacy /XXXXXX)',
           },
           { status: 400 },
         );

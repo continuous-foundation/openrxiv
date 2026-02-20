@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import type { Work } from '@prisma/client';
 import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
@@ -12,8 +12,6 @@ import {
 import { formatWorkDTO } from '@/dtos/work';
 import type { DOIParts } from 'openrxiv-utils';
 import { parseDOI } from 'openrxiv-utils';
-
-const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {

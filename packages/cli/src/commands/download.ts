@@ -6,7 +6,10 @@ import { displayRequesterPaysError } from '../utils/requester-pays-error.js';
 
 export const downloadCommand = new Command('download')
   .description('Download MECA files from the bioRxiv/medRxiv S3 bucket by DOI')
-  .argument('<doi>', 'DOI of the paper (e.g., "10.1101/2024.01.15.123456")')
+  .argument(
+    '<doi>',
+    'DOI of the paper (e.g., "10.1101/2024.01.15.123456" or "10.64898/2025.12.15.123456")',
+  )
   .option('-o, --output <dir>', 'Output directory for downloaded files', './downloads')
   .option('-a, --api-url <url>', 'API base URL', 'https://openrxiv.csf.now')
   .option('--requester-pays', 'Enable requester-pays for S3 bucket access')
@@ -14,7 +17,9 @@ export const downloadCommand = new Command('download')
     try {
       // Validate DOI format
       if (!doi.includes('/')) {
-        console.error('❌ Invalid DOI format. Expected format: 10.1101/2024.01.15.123456');
+        console.error(
+          '❌ Invalid DOI format. Expected format: 10.1101 or 10.64898/2024.01.15.123456 (or legacy /XXXXXX)',
+        );
         process.exit(1);
       }
 
