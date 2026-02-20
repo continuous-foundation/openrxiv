@@ -1,5 +1,16 @@
 # openrxiv-cli
 
+## 0.0.3
+
+### Patch Changes
+
+- 0bda5e5: Update to new DOI prefix
+- cd5fae2: Add CSV and folder export for list commands
+- 0bda5e5: Update libraries and prisma
+- Updated dependencies [0bda5e5]
+- Updated dependencies [0bda5e5]
+  - openrxiv-utils@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes

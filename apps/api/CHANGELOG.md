@@ -1,5 +1,15 @@
 # openrxiv-s3-api
 
+## 0.0.3
+
+### Patch Changes
+
+- 0bda5e5: Update to new DOI prefix
+- 0bda5e5: Update libraries and prisma
+- Updated dependencies [0bda5e5]
+- Updated dependencies [0bda5e5]
+  - openrxiv-utils@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes
