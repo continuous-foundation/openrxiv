@@ -2,6 +2,12 @@
  * Utility functions for parsing bioRxiv URLs and DOIs
  */
 
+/**
+ * bioRxiv DOI prefixes - both legacy (10.1101) and new (10.64898, Dec 2025+)
+ */
+export const BIORXIV_DOI_PREFIXES = ['10.1101', '10.64898'] as const;
+export const BIORXIV_DOI_PREFIX_PATTERN = '(10\\.1101|10\\.64898)';
+
 export interface ParsedBiorxivURL {
   doi: string;
   baseDOI: string;
@@ -47,8 +53,8 @@ export function extractDOIFromURL(url: string): string | null {
       doi = match[1];
     }
   }
-  // Check for direct DOI input
-  else if (url.startsWith('10.1101/')) {
+  // Check for direct DOI input (both 10.1101 and 10.64898 prefixes)
+  else if (url.startsWith('10.1101/') || url.startsWith('10.64898/')) {
     doi = url;
   }
 
@@ -65,13 +71,15 @@ export function extractDOIFromURL(url: string): string | null {
  * Supports both legacy numeric format (2019 and earlier) and current date-based format (2019+)
  */
 export function parseDOI(doi: string): DOIParts | null {
-  // Handle current date-based format (2019+): 10.1101/YYYY.MM.DD.XXXXXXvN
-  const currentPattern = /^10\.1101\/(\d{4})\.(\d{2})\.(\d{2})\.(\d{6,8})(v\d+)?$/;
+  // Handle current date-based format (2019+): {prefix}/YYYY.MM.DD.XXXXXXvN
+  const currentPattern = new RegExp(
+    `^${BIORXIV_DOI_PREFIX_PATTERN}/(\\d{4})\\.(\\d{2})\\.(\\d{2})\\.(\\d{6,8})(v\\d+)?$`,
+  );
   const currentMatch = doi.match(currentPattern);
 
   if (currentMatch) {
     const [prefix, suffix] = doi.split('/');
-    const [, year, month, day, identifier, version] = currentMatch;
+    const [, , year, month, day, identifier, version] = currentMatch;
     const date = `${year}-${month}-${day}`;
 
     return {
@@ -84,8 +92,8 @@ export function parseDOI(doi: string): DOIParts | null {
     };
   }
 
-  // Handle legacy numeric format (2019 and earlier): 10.1101/XXXXXX
-  const legacyPattern = /^10\.1101\/(\d{6,8})(v\d+)?$/;
+  // Handle legacy numeric format (2019 and earlier): {prefix}/XXXXXX (10.1101 only; 10.64898 uses date format)
+  const legacyPattern = new RegExp(`^${BIORXIV_DOI_PREFIX_PATTERN}/(\\d{6,8})(v\\d+)?$`);
   const legacyMatch = doi.match(legacyPattern);
 
   if (legacyMatch) {

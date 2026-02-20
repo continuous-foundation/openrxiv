@@ -42,6 +42,12 @@ describe('BioRxiv URL Parser', () => {
       ],
       ['https://doi.org/10.1101/2024.01.25.577295v3', '10.1101/2024.01.25.577295v3'],
       ['10.1101/2024.01.25.577295v3', '10.1101/2024.01.25.577295v3'],
+      // New prefix 10.64898 (Dec 2025+)
+      ['10.64898/2025.12.15.123456v1', '10.64898/2025.12.15.123456v1'],
+      [
+        'https://www.biorxiv.org/content/10.64898/2025.12.01.999999v2',
+        '10.64898/2025.12.01.999999v2',
+      ],
     ])('should extract DOI from standard content URL', (url, expected) => {
       const result = extractDOIFromURL(url);
       expect(result).toBe(expected);
@@ -102,6 +108,20 @@ describe('BioRxiv URL Parser', () => {
       });
     });
 
+    it('should parse DOI with new 10.64898 prefix (Dec 2025+)', () => {
+      const doi = '10.64898/2025.12.15.123456v1';
+      const result = parseDOI(doi);
+
+      expect(result).toEqual({
+        doi: '10.64898/2025.12.15.123456v1',
+        prefix: '10.64898',
+        date: '2025-12-15',
+        identifier: '123456',
+        suffix: '2025.12.15.123456',
+        version: 'v1',
+      });
+    });
+
     it('should return null for invalid DOI format', () => {
       const invalidDOIs = [
         '10.1000/123.456.789',
@@ -127,6 +147,7 @@ describe('BioRxiv URL Parser', () => {
       ['10.1101/2024.01.25.577295v3', '10.1101/2024.01.25.577295'], // Remove version
       ['10.1101/2024.01.25.577295v12', '10.1101/2024.01.25.577295'], // Remove double digit version
       ['10.1101/2020.03.19.20039131v2', '10.1101/2020.03.19.20039131'], // medrxiv variant
+      ['10.64898/2025.12.15.123456v1', '10.64898/2025.12.15.123456'],
     ])('should extract base DOI from versioned DOI', (doi, expected) => {
       const result = extractBaseDOI(doi);
       expect(result).toBe(expected);
@@ -155,6 +176,10 @@ describe('BioRxiv URL Parser', () => {
       ['10.1101/789012v12', true],
       ['10.1101/789012v3', true],
       ['10.1101/2020.03.19.20039131v2', true],
+      ['10.64898/2025.12.15.123456', true],
+      ['10.64898/2025.12.01.999999v1', true],
+      ['10.64898/789012', true],
+      ['10.64898/789012v3', true],
       ['10.1101/2024.1.25.577295', false],
       ['10.1101/2024.01.25.57729', false],
       ['invalid-doi', false],
@@ -175,6 +200,8 @@ describe('BioRxiv URL Parser', () => {
       ['10.1101/2024.01.25.577295v3', true],
       ['https://www.biorxiv.org/content/10.1101/486050v2.article-info', true],
       ['https://www.biorxiv.org/content/10.1101/486050', true],
+      ['10.64898/2025.12.15.123456v1', true],
+      ['https://www.biorxiv.org/content/10.64898/2025.12.01.999999v2', true],
       // Invalid
       ['https://example.com/not-biorxiv', false],
       ['https://biorxiv.org/invalid-path', false],

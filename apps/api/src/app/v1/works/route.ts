@@ -154,7 +154,7 @@ export const DELETE = withAuth(
             {
               error: 'Invalid bioRxiv DOI format',
               doi: doi,
-              expectedFormat: '10.1101/YYYY.MM.DD.identifier',
+              expectedFormat: '10.1101 or 10.64898/YYYY.MM.DD.identifier (or legacy /XXXXXX)',
             },
             { status: 400 },
           );
