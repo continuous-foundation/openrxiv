@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "openrxiv-cli": "^0.0.2",
-    "commander": "^14.0.0"
+    "commander": "^14.0.3"
   },
   "repository": {
     "type": "git",

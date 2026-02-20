@@ -1,13 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import { parseDOI } from 'openrxiv-utils';
 import { createErrorResponse, handleZodError } from '@/utils/zod';
 import { getBaseUrl } from '@/utils/getBaseUrl';
 import { formatWorkDTO } from '@/dtos/work';
 import { validateGetFileByKeyRequest } from '@/utils/bucket';
-
-const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
