@@ -67,9 +67,15 @@ openrxiv list --batch "Batch_01"
 
 # Explore medRxiv content
 openrxiv list --server medrxiv --limit 100
+
+# Export file listing to CSV (key, size, date modified)
+openrxiv list -m 2025-01 --limit 10000 -o 2025-01.csv
+
+# Export folder overview to text file (all available months and batches)
+openrxiv list --limit 10000 -o folders.txt
 ```
 
-**Why it exists**: Researchers need to understand what data is available before planning downloads. This provides a window into the S3 bucket structure without full traversal.
+**Why it exists**: Researchers need to understand what data is available before planning downloads. This provides a window into the S3 bucket structure without full traversal. Use `-o` to export: CSV for file listings (with month/batch), or a text file for the folder overview.
 
 ## 🔌 API Endpoints
 

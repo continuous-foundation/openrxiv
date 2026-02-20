@@ -8,6 +8,10 @@ export const listCommand = new Command('list')
   .option('-b, --batch <batch>', 'Filter by specific batch (e.g., "Batch_01")')
   .option('-l, --limit <number>', 'Limit the number of results', '50')
   .option('-s, --server <server>', 'Server to use: "biorxiv" or "medrxiv"', getDefaultServer())
+  .option(
+    '-o, --output <file>',
+    'Export results to file (CSV for file listings with .csv extension; text for folder overview)',
+  )
   .action(async (options) => {
     try {
       await listBucketContent(options);
